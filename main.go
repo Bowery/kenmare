@@ -22,6 +22,7 @@ func main() {
 	orchestrateKey := config.OrchestrateDevKey
 	if *env == "production" {
 		orchestrateKey = config.OrchestrateProdKey
+		*port = ":80"
 	}
 	db = gorc.NewClient(orchestrateKey)
 
