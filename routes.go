@@ -27,8 +27,13 @@ func (sh *SlashHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 var Routes = []*Route{
 	&Route{"GET", "/", indexHandler},
+	&Route{"GET", "/healthz", healthzHandler},
 }
 
 func indexHandler(rw http.ResponseWriter, req *http.Request) {
-	fmt.Fprintln(rw, "Hello World")
+	fmt.Fprintln(rw, "Bowery Environment Manager")
+}
+
+func healthzHandler(rw http.ResponseWriter, req *http.Request) {
+	fmt.Fprintln(rw, "ok")
 }
