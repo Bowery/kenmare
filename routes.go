@@ -27,7 +27,6 @@ func (sh *SlashHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 var Routes = []*Route{
 	&Route{"GET", "/", indexHandler},
-	&Route{"POST", "/environments", createEnvironment},
 }
 
 func indexHandler(rw http.ResponseWriter, req *http.Request) {
