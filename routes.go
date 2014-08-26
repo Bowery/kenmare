@@ -34,8 +34,9 @@ func (sh *SlashHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 var Routes = []*Route{
 	&Route{"GET", "/", indexHandler},
 	&Route{"GET", "/healthz", healthzHandler},
-	&Route{"POST", "/environments", createNewEnvironmentHandler},
+	&Route{"POST", "/environments", createEnvironmentHandler},
 	&Route{"GET", "/environments/{id}", getEnvironmentByID},
+	&Route{"POST", "/events", createEventHandler},
 }
 
 var r = render.New(render.Options{
@@ -51,7 +52,7 @@ func healthzHandler(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(rw, "ok")
 }
 
-func createNewEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
+func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 	ami := req.FormValue("ami")
 	instanceType := req.FormValue("instance_type")
 	awsAccessKey := req.FormValue("aws_access_key")
@@ -96,7 +97,7 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
-	data, err := db.Get("environments", id)
+	envData, err := db.Get("environments", id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
@@ -105,12 +106,69 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	env := Environment{}
-	if err := data.Value(&env); err != nil {
+	if err := envData.Value(&env); err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
+	eventsData, err := db.GetEvents("events", id, "event")
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	var events []Event = make([]Event, len(eventsData.Results))
+	for i, e := range eventsData.Results {
+		if err := e.Value(&events[i]); err != nil {
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+	}
+
+	env.Events = events
 	r.JSON(rw, http.StatusBadRequest, env)
+}
+
+func createEventHandler(rw http.ResponseWriter, req *http.Request) {
+	typ := req.FormValue("type")
+	body := req.FormValue("body")
+	envID := req.FormValue("envID")
+
+	if typ == "" || body == "" || envID == "" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": "missing fields",
+		})
+		return
+	}
+
+	_, err := db.Get("environments", envID)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	id := uuid.New()
+	event := &Event{
+		ID:   id,
+		Type: typ,
+		Body: body,
+	}
+
+	err = db.PutEvent("events", envID, "event", event)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	r.JSON(rw, http.StatusOK, event)
 }
