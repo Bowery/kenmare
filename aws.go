@@ -4,10 +4,21 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/mitchellh/goamz/aws"
 	"github.com/mitchellh/goamz/ec2"
+)
+
+var (
+	validAMIs          = []string{} // todo(steve)
+	validInstanceTypes = []string{
+		"t1.micro",
+		"m1.small",
+		"m1.medium",
+		"m1.large",
+	}
 )
 
 // AWSClient is a ec2 client.
@@ -41,6 +52,19 @@ func NewAWSClient(accessKey, secretKey string) (*AWSClient, error) {
 func (c *AWSClient) CreateInstance(ami, instanceType string) (string, error) {
 	if ami == "" || instanceType == "" {
 		return "", errors.New("ami id and instance type required.")
+	}
+
+	// Validate ami and instance type.
+	isValidAMI := false
+	for _, a := range validAMIs {
+		if a == ami {
+			isValidAMI = true
+			break
+		}
+	}
+
+	if !isValidAMI {
+		return "", fmt.Errorf("%s is an invalid ami", ami)
 	}
 
 	opts := &ec2.RunInstances{
