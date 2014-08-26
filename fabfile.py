@@ -11,6 +11,9 @@ env.password = 'java$cript'
 
 def restart():
   sudo('mkdir -p /home/ubuntu/gocode/src/github.com/Bowery/')
+  with cd('/home/ubuntu/gocode/src/github.com/Bowery/gopackages'):
+    run('git pull')
+    
   with cd('/home/ubuntu/gocode/src/github.com/Bowery/' + project):
     run('git pull')
     sudo('GOPATH=/home/ubuntu/gocode go get -d')
