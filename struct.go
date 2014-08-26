@@ -2,10 +2,11 @@
 package main
 
 type Environment struct {
-	ID           string `json:"id"`
-	AMI          string `json:"ami"`
-	InstanceType string `json:"instanceType"`
-	Ports        []int  `json:"ports"`
+	ID           string  `json:"id"`
+	AMI          string  `json:"ami"`
+	InstanceType string  `json:"instanceType"`
+	Ports        []int   `json:"ports"`
+	Events       []Event `json:"events"`
 }
 
 type Event struct {
