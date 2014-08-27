@@ -65,15 +65,21 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// todo(steve): enable this.
-	// awsClient := NewAWSClient(awsAccessKey, awsSecretKey)
-	// addr, err := awsClient.CreateInstance(ami, instanceType)
-	// if err != nil {
-	// 	r.JSON(rw, http.StatusBadRequest, map[string]string{
-	// 		"error": err.Error(),
-	// 	})
-	// 	return
-	// }
+	awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	addr, err := awsClient.CreateInstance(ami, instanceType)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
 
 	id := uuid.New()
 	env := &Environment{
@@ -82,7 +88,7 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 		InstanceType: instanceType,
 	}
 
-	_, err := db.Put("environments", id, env)
+	_, err = db.Put("environments", id, env)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
@@ -90,7 +96,11 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, env)
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":      "created",
+		"environment": env,
+		"address":     addr,
+	})
 }
 
 func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {

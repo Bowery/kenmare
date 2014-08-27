@@ -12,13 +12,16 @@ import (
 )
 
 var (
-	validAMIs          = []string{} // todo(steve)
+	validAMIs = []string{
+		"ami-722ff51a", // this will change
+	}
 	validInstanceTypes = []string{
 		"t1.micro",
 		"m1.small",
 		"m1.medium",
 		"m1.large",
 	}
+	defaultSecurityGroup = "sg-70e0851a"
 )
 
 // AWSClient is a ec2 client.
@@ -67,11 +70,30 @@ func (c *AWSClient) CreateInstance(ami, instanceType string) (string, error) {
 		return "", fmt.Errorf("%s is an invalid ami", ami)
 	}
 
+	isValidInstanceType := false
+	for _, i := range validInstanceTypes {
+		if i == instanceType {
+			isValidInstanceType = true
+			break
+		}
+	}
+
+	if !isValidInstanceType {
+		return "", fmt.Errorf("%s is an invalid instance type", instanceType)
+	}
+
+	// Set instance config.
+	// todo(steve): handle custom ports.
 	opts := &ec2.RunInstances{
 		ImageId:      ami,
 		MinCount:     1,
 		MaxCount:     1,
 		InstanceType: instanceType,
+		SecurityGroups: []ec2.SecurityGroup{
+			ec2.SecurityGroup{
+				Id: defaultSecurityGroup,
+			},
+		},
 	}
 
 	// Send RunInstance request.
