@@ -4,10 +4,12 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"code.google.com/p/go-uuid/uuid"
 
+	"github.com/Bowery/gopackages/schemas"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/render"
 )
@@ -57,6 +59,7 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 	instanceType := req.FormValue("instance_type")
 	awsAccessKey := req.FormValue("aws_access_key")
 	awsSecretKey := req.FormValue("aws_secret_key")
+	ports := req.FormValue("ports")
 
 	if ami == "" || instanceType == "" || awsAccessKey == "" || awsSecretKey == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -73,7 +76,25 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	addr, err := awsClient.CreateInstance(ami, instanceType)
+	var portsList []int
+	if ports != "" {
+		portsSplit := strings.Split(ports, ",")
+		portsList = make([]int, len(portsSplit))
+		for i, port := range portsSplit {
+			port = strings.Trim(port, " ")
+			num, err := strconv.Atoi(port)
+			if err != nil {
+				r.JSON(rw, http.StatusBadRequest, map[string]string{
+					"error": fmt.Sprintf("invalid port %s", port),
+				})
+				return
+			}
+
+			portsList[i] = num
+		}
+	}
+
+	addr, err := awsClient.CreateInstance(ami, instanceType, portsList)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
@@ -82,7 +103,7 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	id := uuid.New()
-	env := &Environment{
+	env := &schemas.Environment{
 		ID:           id,
 		AMI:          ami,
 		InstanceType: instanceType,
@@ -115,7 +136,7 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	env := Environment{}
+	env := schemas.Environment{}
 	if err := envData.Value(&env); err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
@@ -131,7 +152,7 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var events []Event = make([]Event, len(eventsData.Results))
+	var events []schemas.Event = make([]schemas.Event, len(eventsData.Results))
 	for i, e := range eventsData.Results {
 		if err := e.Value(&events[i]); err != nil {
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -166,7 +187,7 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	id := uuid.New()
-	event := &Event{
+	event := &schemas.Event{
 		ID:   id,
 		Type: typ,
 		Body: body,

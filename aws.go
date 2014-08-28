@@ -5,6 +5,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/mitchellh/goamz/aws"
@@ -52,7 +53,7 @@ func NewAWSClient(accessKey, secretKey string) (*AWSClient, error) {
 // ami and instanceType. Returns the public address of the newly
 // created instance. Returns an error if unable to create a new
 // instance, or if there is an error checking the state.
-func (c *AWSClient) CreateInstance(ami, instanceType string) (string, error) {
+func (c *AWSClient) CreateInstance(ami, instanceType string, ports []int) (string, error) {
 	if ami == "" || instanceType == "" {
 		return "", errors.New("ami id and instance type required.")
 	}
@@ -80,6 +81,10 @@ func (c *AWSClient) CreateInstance(ami, instanceType string) (string, error) {
 
 	if !isValidInstanceType {
 		return "", fmt.Errorf("%s is an invalid instance type", instanceType)
+	}
+
+	if len(ports) > 0 {
+		log.Println("ports provided")
 	}
 
 	// Set instance config.
