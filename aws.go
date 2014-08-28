@@ -22,6 +22,8 @@ var (
 		"m1.large",
 	}
 	defaultSecurityGroup = "sg-70e0851a"
+	requiredPorts        = []int{32056, 32058}
+	suggestedPorts       = []int{22, 80, 3306, 6379, 8080, 27017}
 )
 
 // AWSClient is a ec2 client.
@@ -52,7 +54,8 @@ func NewAWSClient(accessKey, secretKey string) (*AWSClient, error) {
 // ami and instanceType. Returns the public address of the newly
 // created instance. Returns an error if unable to create a new
 // instance, or if there is an error checking the state.
-func (c *AWSClient) CreateInstance(ami, instanceType string) (string, error) {
+func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int) (string, error) {
+	// An ami id and instance type are required.
 	if ami == "" || instanceType == "" {
 		return "", errors.New("ami id and instance type required.")
 	}
@@ -82,8 +85,18 @@ func (c *AWSClient) CreateInstance(ami, instanceType string) (string, error) {
 		return "", fmt.Errorf("%s is an invalid instance type", instanceType)
 	}
 
+	var err error
+	securityGroupId := defaultSecurityGroup
+
+	// Create a new security group if ports are provided.
+	if len(ports) > 0 {
+		securityGroupId, err = c.createSecurityGroup(appID, ports)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	// Set instance config.
-	// todo(steve): handle custom ports.
 	opts := &ec2.RunInstances{
 		ImageId:      ami,
 		MinCount:     1,
@@ -91,7 +104,7 @@ func (c *AWSClient) CreateInstance(ami, instanceType string) (string, error) {
 		InstanceType: instanceType,
 		SecurityGroups: []ec2.SecurityGroup{
 			ec2.SecurityGroup{
-				Id: defaultSecurityGroup,
+				Id: securityGroupId,
 			},
 		},
 	}
@@ -129,4 +142,56 @@ func (c *AWSClient) CreateInstance(ami, instanceType string) (string, error) {
 			return instance.PublicIpAddress, nil
 		}
 	}
+}
+
+// createSecurityGroup creates a new security group with
+// the provided ports. All ports are fully accessible and
+// operate over TCP.
+func (c *AWSClient) createSecurityGroup(appID string, ports []int) (string, error) {
+	// Create new security group.
+	res, err := c.client.CreateSecurityGroup(ec2.SecurityGroup{
+		Name:        fmt.Sprintf("Bowery Security Group %s", appID),
+		Description: fmt.Sprintf("Bowery Security Group for Application %s", appID),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	id := res.Id
+	perms := []ec2.IPPerm{}
+
+	// Add unique ports.
+	for _, p := range ports {
+		for _, r := range requiredPorts {
+			if p != r {
+				ports = append(ports, r)
+			}
+		}
+
+		for _, s := range suggestedPorts {
+			if p != s {
+				ports = append(ports, s)
+			}
+		}
+	}
+
+	// Create ec2.IPPerm.
+	for _, p := range ports {
+		perms = append(perms, ec2.IPPerm{
+			Protocol:  "tcp",
+			FromPort:  p,
+			ToPort:    p,
+			SourceIPs: []string{"0.0.0.0/0"},
+		})
+	}
+
+	// Send ingress request.
+	group := ec2.SecurityGroup{Id: id}
+	_, err = c.client.AuthorizeSecurityGroup(group, perms)
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }

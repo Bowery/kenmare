@@ -2,12 +2,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"code.google.com/p/go-uuid/uuid"
 
+	"github.com/Bowery/gopackages/schemas"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/render"
 )
@@ -37,6 +40,7 @@ var Routes = []*Route{
 	&Route{"POST", "/environments", createEnvironmentHandler},
 	&Route{"GET", "/environments/{id}", getEnvironmentByID},
 	&Route{"POST", "/events", createEventHandler},
+	&Route{"GET", "/applications/{id}", getApplicationByID},
 }
 
 var r = render.New(render.Options{
@@ -52,11 +56,31 @@ func healthzHandler(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(rw, "ok")
 }
 
+type createEnvironmentReq struct {
+	AMI          string `json:"ami"`
+	InstanceType string `json:"instance_type"`
+	AWSAccessKey string `json:"aws_access_key"`
+	AWSSecretKey string `json:"aws_secret_key"`
+	Ports        string `json:"ports"`
+}
+
+// createEnvironmentHandler creates a new environment
 func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
-	ami := req.FormValue("ami")
-	instanceType := req.FormValue("instance_type")
-	awsAccessKey := req.FormValue("aws_access_key")
-	awsSecretKey := req.FormValue("aws_secret_key")
+	var body createEnvironmentReq
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&body)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ami := body.AMI
+	instanceType := body.InstanceType
+	awsAccessKey := body.AWSAccessKey
+	awsSecretKey := body.AWSSecretKey
+	ports := body.Ports
 
 	if ami == "" || instanceType == "" || awsAccessKey == "" || awsSecretKey == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -73,7 +97,35 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	addr, err := awsClient.CreateInstance(ami, instanceType)
+	var portsList []int
+	if ports != "" {
+		portsSplit := strings.Split(ports, ",")
+		portsList = make([]int, len(portsSplit))
+		for i, port := range portsSplit {
+			port = strings.Trim(port, " ")
+			num, err := strconv.Atoi(port)
+			if err != nil {
+				r.JSON(rw, http.StatusBadRequest, map[string]string{
+					"error": fmt.Sprintf("invalid port %s", port),
+				})
+				return
+			}
+
+			portsList[i] = num
+		}
+	}
+
+	// Create app
+	appID := uuid.New()
+	envID := uuid.New()
+
+	app := schemas.Application{
+		ID:     appID,
+		EnvID:  envID,
+		Status: "provisioning",
+	}
+
+	_, err = db.Put("applications", appID, app)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
@@ -81,25 +133,35 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	id := uuid.New()
-	env := &Environment{
-		ID:           id,
-		AMI:          ami,
-		InstanceType: instanceType,
-	}
+	// Create instance in background. Update the application status
+	// given the results of this process.
+	go func() {
+		addr, err := awsClient.CreateInstance(ami, instanceType, appID, portsList)
+		if err != nil {
+			app.Status = "failed"
+			db.Put("applications", app.ID, app)
+			return
+		}
 
-	_, err = db.Put("environments", id, env)
-	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
-		})
-		return
-	}
+		env := &schemas.Environment{
+			ID:           envID,
+			AMI:          ami,
+			InstanceType: instanceType,
+		}
+
+		// Create env. If the environment is successfully
+		// created, update the application.
+		_, err = db.Put("environments", envID, env)
+		if err == nil {
+			app.Location = addr
+			app.Status = "running"
+			db.Put("applications", app.ID, app)
+		}
+	}()
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
-		"status":      "created",
-		"environment": env,
-		"address":     addr,
+		"status": "pending",
+		"appID":  appID,
 	})
 }
 
@@ -115,7 +177,7 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	env := Environment{}
+	env := schemas.Environment{}
 	if err := envData.Value(&env); err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
@@ -131,7 +193,7 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var events []Event = make([]Event, len(eventsData.Results))
+	var events []schemas.Event = make([]schemas.Event, len(eventsData.Results))
 	for i, e := range eventsData.Results {
 		if err := e.Value(&events[i]); err != nil {
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -145,19 +207,35 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	r.JSON(rw, http.StatusBadRequest, env)
 }
 
-func createEventHandler(rw http.ResponseWriter, req *http.Request) {
-	typ := req.FormValue("type")
-	body := req.FormValue("body")
-	envID := req.FormValue("envID")
+type createEventReq struct {
+	Type  string `json:"type"`
+	Body  string `json:"body"`
+	EnvID string `json:"envID"`
+}
 
-	if typ == "" || body == "" || envID == "" {
+func createEventHandler(rw http.ResponseWriter, req *http.Request) {
+	var body createEventReq
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&body)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	typ := body.Type
+	bdy := body.Body
+	envID := body.EnvID
+
+	if typ == "" || bdy == "" || envID == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": "missing fields",
 		})
 		return
 	}
 
-	_, err := db.Get("environments", envID)
+	_, err = db.Get("environments", envID)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
@@ -166,10 +244,10 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	id := uuid.New()
-	event := &Event{
+	event := &schemas.Event{
 		ID:   id,
 		Type: typ,
-		Body: body,
+		Body: bdy,
 	}
 
 	err = db.PutEvent("events", envID, "event", event)
@@ -181,4 +259,27 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	r.JSON(rw, http.StatusOK, event)
+}
+
+func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	appData, err := db.Get("applications", id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	app := schemas.Application{}
+	if err := appData.Value(&app); err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	r.JSON(rw, http.StatusOK, app)
 }
