@@ -37,10 +37,10 @@ func (sh *SlashHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 var Routes = []*Route{
 	&Route{"GET", "/", indexHandler},
 	&Route{"GET", "/healthz", healthzHandler},
-	&Route{"POST", "/environments", createEnvironmentHandler},
+	&Route{"POST", "/applications", createApplicationHandler},
+	&Route{"GET", "/applications/{id}", getApplicationByID},
 	&Route{"GET", "/environments/{id}", getEnvironmentByID},
 	&Route{"POST", "/events", createEventHandler},
-	&Route{"GET", "/applications/{id}", getApplicationByID},
 }
 
 var r = render.New(render.Options{
@@ -58,6 +58,7 @@ func healthzHandler(rw http.ResponseWriter, req *http.Request) {
 
 type createEnvironmentReq struct {
 	AMI          string `json:"ami"`
+	EnvID        string `json:"envID"`
 	InstanceType string `json:"instance_type"`
 	AWSAccessKey string `json:"aws_access_key"`
 	AWSSecretKey string `json:"aws_secret_key"`
@@ -65,7 +66,7 @@ type createEnvironmentReq struct {
 }
 
 // createEnvironmentHandler creates a new environment
-func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
+func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	var body createEnvironmentReq
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
@@ -165,6 +166,29 @@ func createEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	appData, err := db.Get("applications", id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	app := schemas.Application{}
+	if err := appData.Value(&app); err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	r.JSON(rw, http.StatusOK, app)
+}
+
 func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
@@ -259,27 +283,4 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	r.JSON(rw, http.StatusOK, event)
-}
-
-func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	id := vars["id"]
-
-	appData, err := db.Get("applications", id)
-	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	app := schemas.Application{}
-	if err := appData.Value(&app); err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	r.JSON(rw, http.StatusOK, app)
 }
