@@ -10,6 +10,7 @@ import (
 
 	"code.google.com/p/go-uuid/uuid"
 
+	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/render"
@@ -85,7 +86,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 	if ami == "" || instanceType == "" || awsAccessKey == "" || awsSecretKey == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": "missing fields",
+			"status": requests.STATUS_FAILED,
+			"error":  "missing fields",
 		})
 		return
 	}
@@ -93,7 +95,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -107,7 +110,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			num, err := strconv.Atoi(port)
 			if err != nil {
 				r.JSON(rw, http.StatusBadRequest, map[string]string{
-					"error": fmt.Sprintf("invalid port %s", port),
+					"status": requests.STATUS_FAILED,
+					"error":  fmt.Sprintf("invalid port %s", port),
 				})
 				return
 			}
@@ -129,7 +133,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	_, err = db.Put("applications", appID, app)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_SUCCESS,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -139,7 +144,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	go func() {
 		addr, err := awsClient.CreateInstance(ami, instanceType, appID, portsList)
 		if err != nil {
-			app.Status = "failed"
+			app.Status = requests.STATUS_FAILED
 			db.Put("applications", app.ID, app)
 			return
 		}
@@ -161,8 +166,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	}()
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
-		"status": "pending",
-		"appID":  appID,
+		"status":      requests.STATUS_SUCCESS,
+		"application": app,
 	})
 }
 
@@ -186,7 +191,10 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, app)
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":      requests.STATUS_FOUND,
+		"application": app,
+	})
 }
 
 func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
@@ -196,7 +204,8 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	envData, err := db.Get("environments", id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -204,7 +213,8 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	env := schemas.Environment{}
 	if err := envData.Value(&env); err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -212,7 +222,8 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	eventsData, err := db.GetEvents("events", id, "event")
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -221,14 +232,18 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	for i, e := range eventsData.Results {
 		if err := e.Value(&events[i]); err != nil {
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
-				"error": err.Error(),
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
 			})
 			return
 		}
 	}
 
 	env.Events = events
-	r.JSON(rw, http.StatusBadRequest, env)
+	r.JSON(rw, http.StatusBadRequest, map[string]interface{}{
+		"status":      requests.STATUS_FOUND,
+		"environment": env,
+	})
 }
 
 type createEventReq struct {
@@ -243,7 +258,8 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	err := decoder.Decode(&body)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -254,7 +270,8 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 
 	if typ == "" || bdy == "" || envID == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": "missing fields",
+			"status": requests.STATUS_FAILED,
+			"error":  "missing fields",
 		})
 		return
 	}
@@ -262,7 +279,8 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	_, err = db.Get("environments", envID)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -277,10 +295,14 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	err = db.PutEvent("events", envID, "event", event)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, event)
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status": requests.STATUS_SUCCESS,
+		"event":  event,
+	})
 }
