@@ -16,9 +16,13 @@ Kepler uses Orchestrate.io as a datastore.
 
 Create a new application and associated environment. If the request includes an environment identifier, replicate that environment. Note: that functionality does not exist yet
 
-**Required params:** `ami`, `instance_type`, `aws_access_key`, `aws_secret_key`.
+**Required params:** `ami`, `instance_type`, `aws_access_key`, `aws_secret_key`, `token`.
 
 **Optional params:** `envID`, `ports`.
+
+### `GET /applications?token={token}`
+
+Get all applications owned by the user with the specified token.
 
 ### `GET /applications/{id}`
 
