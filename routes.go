@@ -40,6 +40,7 @@ var Routes = []*Route{
 	&Route{"GET", "/", indexHandler},
 	&Route{"GET", "/healthz", healthzHandler},
 	&Route{"POST", "/applications", createApplicationHandler},
+	&Route{"GET", "/applications", getApplicationsHandler},
 	&Route{"GET", "/applications/{id}", getApplicationByID},
 	&Route{"GET", "/environments/{id}", getEnvironmentByID},
 	&Route{"POST", "/events", createEventHandler},
@@ -189,6 +190,52 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
+	token := req.FormValue("token")
+	if token == "" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "token required",
+		})
+		return
+	}
+
+	dev, err := getDev(token)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	query := fmt.Sprintf("value.developerId=%s", dev.ID.Hex())
+	appsData, err := db.Search("applications", query, 100, 0)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	var apps []schemas.Application = make([]schemas.Application, len(appsData.Results))
+	for i, a := range appsData.Results {
+		if err := a.Value(&apps[i]); err != nil {
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
+			})
+			return
+		}
+	}
+
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":       requests.STATUS_FOUND,
+		"applications": apps,
+	})
+}
+
 func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
@@ -258,7 +305,7 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	env.Events = events
-	r.JSON(rw, http.StatusBadRequest, map[string]interface{}{
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"environment": env,
 	})
