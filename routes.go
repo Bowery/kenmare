@@ -67,6 +67,10 @@ type createApplicationReq struct {
 	AWSAccessKey string `json:"aws_access_key"`
 	AWSSecretKey string `json:"aws_secret_key"`
 	Ports        string `json:"ports"`
+	Start        string `json:"start"`
+	Build        string `json:"build"`
+	LocalPath    string `json:"localPath"`
+	RemotePath   string `json:"remotePath"`
 }
 
 // createEnvironmentHandler creates a new environment
@@ -146,6 +150,10 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		EnvID:       envID,
 		DeveloperID: dev.ID.Hex(),
 		Status:      "provisioning",
+		Start:       body.Start,
+		Build:       body.Build,
+		LocalPath:   body.LocalPath,
+		RemotePath:  body.RemotePath,
 	}
 
 	// Write to Orchestrate.
