@@ -218,7 +218,6 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO: Handle inactive apps.
 	query := fmt.Sprintf("value.developerId=%s", dev.ID.Hex())
 	appsData, err := db.Search("applications", query, 100, 0)
 	if err != nil {
@@ -250,11 +249,11 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
-	// TODO: Handle inactive as not found.
 	appData, err := db.Get("applications", id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -262,7 +261,8 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	app := schemas.Application{}
 	if err := appData.Value(&app); err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -286,8 +286,53 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO: Set inactive and disable machine.
+	// Get the developer to check if authorized.
+	dev, err := getDev(token)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
 
+	appData, err := db.Get("applications", id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	app := new(schemas.Application)
+	if err := appData.Value(app); err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Check if the developer is allowed to remove the app.
+	if dev.ID.Hex() != app.DeveloperID && !dev.IsAdmin {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  fmt.Sprintf("unauthorized to remove app with id %s", id),
+		})
+		return
+	}
+
+	err = db.Delete("applications", id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// TODO: disable machine.
 	r.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.STATUS_SUCCESS,
 	})
