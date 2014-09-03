@@ -150,6 +150,10 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		EnvID:       envID,
 		DeveloperID: dev.ID.Hex(),
 		Status:      "provisioning",
+		Start:       body.Start,
+		Build:       body.Build,
+		LocalPath:   body.LocalPath,
+		RemotePath:  body.RemotePath,
 	}
 
 	// Write to Orchestrate.
