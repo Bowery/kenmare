@@ -28,6 +28,10 @@ Get all applications owned by the user with the specified token.
 
 Get an application by id.
 
+### `DELETE /applications/{id}?token={token}`
+
+Delete an application by id owned by the user with the specified token.
+
 ### `GET /environments/{id}`
 
 Get an environment and associated events.

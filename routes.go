@@ -42,6 +42,7 @@ var Routes = []*Route{
 	&Route{"POST", "/applications", createApplicationHandler},
 	&Route{"GET", "/applications", getApplicationsHandler},
 	&Route{"GET", "/applications/{id}", getApplicationByID},
+	&Route{"DELETE", "/applications/{id}", removeApplicationByID},
 	&Route{"GET", "/environments/{id}", getEnvironmentByID},
 	&Route{"POST", "/events", createEventHandler},
 }
@@ -217,6 +218,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// TODO: Handle inactive apps.
 	query := fmt.Sprintf("value.developerId=%s", dev.ID.Hex())
 	appsData, err := db.Search("applications", query, 100, 0)
 	if err != nil {
@@ -227,7 +229,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var apps []schemas.Application = make([]schemas.Application, len(appsData.Results))
+	apps := make([]schemas.Application, len(appsData.Results))
 	for i, a := range appsData.Results {
 		if err := a.Value(&apps[i]); err != nil {
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -248,6 +250,7 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
+	// TODO: Handle inactive as not found.
 	appData, err := db.Get("applications", id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -267,6 +270,26 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"application": app,
+	})
+}
+
+func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	token := req.FormValue("token")
+	if token == "" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "token required",
+		})
+		return
+	}
+
+	// TODO: Set inactive and disable machine.
+
+	r.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.STATUS_SUCCESS,
 	})
 }
 
