@@ -42,6 +42,7 @@ var Routes = []*Route{
 	&Route{"POST", "/applications", createApplicationHandler},
 	&Route{"GET", "/applications", getApplicationsHandler},
 	&Route{"GET", "/applications/{id}", getApplicationByID},
+	&Route{"DELETE", "/applications/{id}", removeApplicationByID},
 	&Route{"GET", "/environments/{id}", getEnvironmentByID},
 	&Route{"POST", "/events", createEventHandler},
 }
@@ -227,7 +228,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var apps []schemas.Application = make([]schemas.Application, len(appsData.Results))
+	apps := make([]schemas.Application, len(appsData.Results))
 	for i, a := range appsData.Results {
 		if err := a.Value(&apps[i]); err != nil {
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -251,7 +252,8 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	appData, err := db.Get("applications", id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -259,7 +261,8 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	app := schemas.Application{}
 	if err := appData.Value(&app); err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"error": err.Error(),
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -267,6 +270,71 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"application": app,
+	})
+}
+
+func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	token := req.FormValue("token")
+	if token == "" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "token required",
+		})
+		return
+	}
+
+	// Get the developer to check if authorized.
+	dev, err := getDev(token)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	appData, err := db.Get("applications", id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	app := new(schemas.Application)
+	if err := appData.Value(app); err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Check if the developer is allowed to remove the app.
+	if dev.ID.Hex() != app.DeveloperID && !dev.IsAdmin {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  fmt.Sprintf("unauthorized to remove app with id %s", id),
+		})
+		return
+	}
+
+	err = db.Delete("applications", id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// TODO: disable machine.
+	r.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.STATUS_SUCCESS,
 	})
 }
 
