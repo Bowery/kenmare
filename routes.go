@@ -170,7 +170,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	// Create instance in background. Update the application status
 	// given the results of this process.
 	go func() {
-		addr, err := awsClient.CreateInstance(ami, instanceType, appID, portsList)
+		addr, instanceID, err := awsClient.CreateInstance(ami, instanceType, appID, portsList)
 		if err != nil {
 			app.Status = requests.STATUS_FAILED
 			db.Put("applications", app.ID, app)
@@ -188,6 +188,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		_, err = db.Put("environments", envID, env)
 		if err == nil {
 			app.Location = addr
+			app.InstanceID = instanceID
 			app.Status = "running"
 			db.Put("applications", app.ID, app)
 		}
@@ -278,7 +279,9 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	id := vars["id"]
 
 	token := req.FormValue("token")
-	if token == "" {
+	awsAccessKey := req.FormValue("awsAccessKey")
+	awsSecretKey := req.FormValue("awsSecretKey")
+	if token == "" || awsAccessKey == "" || awsSecretKey == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "token required",
@@ -323,6 +326,27 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Create AWS client.
+	awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Remove the aws instance.
+	err = awsClient.RemoveInstance(app.InstanceID)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Remove the app from the db.
 	err = db.Delete("applications", id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -332,7 +356,6 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO: disable machine.
 	r.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.STATUS_SUCCESS,
 	})
