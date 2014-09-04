@@ -42,6 +42,7 @@ var Routes = []*Route{
 	&Route{"POST", "/applications", createApplicationHandler},
 	&Route{"GET", "/applications", getApplicationsHandler},
 	&Route{"GET", "/applications/{id}", getApplicationByID},
+	&Route{"PUT", "/applications/{id}", updateApplicationByID},
 	&Route{"DELETE", "/applications/{id}", removeApplicationByID},
 	&Route{"GET", "/environments/{id}", getEnvironmentByID},
 	&Route{"POST", "/events", createEventHandler},
@@ -60,7 +61,7 @@ func healthzHandler(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(rw, "ok")
 }
 
-type createApplicationReq struct {
+type applicationReq struct {
 	AMI          string `json:"ami"`
 	EnvID        string `json:"envID"`
 	Token        string `json:"token"`
@@ -77,7 +78,7 @@ type createApplicationReq struct {
 
 // createEnvironmentHandler creates a new environment
 func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
-	var body createApplicationReq
+	var body applicationReq
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
 	if err != nil {
@@ -272,6 +273,100 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"application": app,
+	})
+}
+
+func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
+	body := new(applicationReq)
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&body)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	vars := mux.Vars(req)
+	id := vars["id"]
+	token := body.Token
+
+	// Validate request.
+	if token == "" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "missing fields",
+		})
+		return
+	}
+
+	// Get the developer to check if authorized.
+	dev, err := getDev(token)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Get the application.
+	appData, err := db.Get("applications", id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	app := new(schemas.Application)
+	if err := appData.Value(app); err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Check if the developer is allowed to modify the app.
+	if dev.ID.Hex() != app.DeveloperID && !dev.IsAdmin {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  fmt.Sprintf("unauthorized to modify app with id %s", id),
+		})
+		return
+	}
+
+	// Add modifications allowed.
+	if body.Name != "" {
+		app.Name = body.Name
+	}
+	if body.Start != "" {
+		app.Start = body.Start
+	}
+	if body.Build != "" {
+		app.Build = body.Build
+	}
+	if body.RemotePath != "" {
+		app.RemotePath = body.RemotePath
+	}
+	if body.LocalPath != "" {
+		app.LocalPath = body.LocalPath
+	}
+
+	_, err = db.Put("applications", app.ID, app)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	r.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.STATUS_SUCCESS,
 	})
 }
 

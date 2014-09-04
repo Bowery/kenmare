@@ -143,6 +143,7 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 	}
 }
 
+// RemoveInstances terminates the ec2 instance with the given id.
 func (c *AWSClient) RemoveInstance(instanceID string) error {
 	if instanceID == "" {
 		return errors.New("instance id is required.")
