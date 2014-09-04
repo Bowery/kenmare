@@ -51,13 +51,13 @@ func NewAWSClient(accessKey, secretKey string) (*AWSClient, error) {
 }
 
 // CreateInstance creates a new EC2 instances with the specified
-// ami and instanceType. Returns the public address of the newly
-// created instance. Returns an error if unable to create a new
-// instance, or if there is an error checking the state.
-func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int) (string, error) {
+// ami and instanceType. It returns the public address and the instance id
+// on success. An error is returned if it can't be created or the state can't
+// be retrieved.
+func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int) (addr string, id string, err error) {
 	// An ami id and instance type are required.
 	if ami == "" || instanceType == "" {
-		return "", errors.New("ami id and instance type required.")
+		return "", "", errors.New("ami id and instance type required.")
 	}
 
 	// Validate ami and instance type.
@@ -70,7 +70,7 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 	}
 
 	if !isValidAMI {
-		return "", fmt.Errorf("%s is an invalid ami", ami)
+		return "", "", fmt.Errorf("%s is an invalid ami", ami)
 	}
 
 	isValidInstanceType := false
@@ -82,17 +82,16 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 	}
 
 	if !isValidInstanceType {
-		return "", fmt.Errorf("%s is an invalid instance type", instanceType)
+		return "", "", fmt.Errorf("%s is an invalid instance type", instanceType)
 	}
 
-	var err error
 	securityGroupId := defaultSecurityGroup
 
 	// Create a new security group if ports are provided.
 	if len(ports) > 0 {
 		securityGroupId, err = c.createSecurityGroup(appID, ports)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
@@ -112,11 +111,11 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 	// Send RunInstance request.
 	res, err := c.client.RunInstances(opts)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if len(res.Instances) != 1 {
-		return "", errors.New("Failed to create required number of instances.")
+		return "", "", errors.New("Failed to create required number of instances.")
 	}
 
 	instanceID := res.Instances[0].InstanceId
@@ -129,19 +128,32 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 		<-time.After(time.Second)
 		res, err := c.client.Instances([]string{instanceID}, nil)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 
 		if len(res.Reservations) != 1 {
-			return "", errors.New("Unexpected response.")
+			return "", "", errors.New("Unexpected response.")
 		}
 
 		instance := res.Reservations[0].Instances[0]
 		state := instance.State.Name
 		if state == "running" {
-			return instance.PublicIpAddress, nil
+			return instance.PublicIpAddress, instanceID, nil
 		}
 	}
+}
+
+func (c *AWSClient) RemoveInstance(instanceID string) error {
+	if instanceID == "" {
+		return errors.New("instance id is required.")
+	}
+
+	_, err := c.client.TerminateInstances([]string{instanceID})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // createSecurityGroup creates a new security group with
