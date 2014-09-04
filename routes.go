@@ -68,6 +68,7 @@ type createApplicationReq struct {
 	AWSAccessKey string `json:"aws_access_key"`
 	AWSSecretKey string `json:"aws_secret_key"`
 	Ports        string `json:"ports"`
+	Name         string `json:"name"`
 	Start        string `json:"start"`
 	Build        string `json:"build"`
 	LocalPath    string `json:"localPath"`
