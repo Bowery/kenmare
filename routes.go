@@ -3,6 +3,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -121,16 +122,20 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
+		return
 	}
 
 	// Create AWS client.
-	awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
-	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
+	var awsClient *AWSClient
+	if env != "testing" {
+		awsClient, err = NewAWSClient(awsAccessKey, awsSecretKey)
+		if err != nil {
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
+			})
+			return
+		}
 	}
 
 	var portsList []int
@@ -181,6 +186,10 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	// Create instance in background. Update the application status
 	// given the results of this process.
 	go func() {
+		if env == "testing" {
+			return
+		}
+
 		addr, instanceID, err := awsClient.CreateInstance(ami, instanceType, appID, portsList)
 		if err != nil {
 			app.Status = requests.STATUS_FAILED
@@ -230,7 +239,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	query := fmt.Sprintf("value.developerId=%s", dev.ID.Hex())
+	query := fmt.Sprintf(`developerId:"%s"`, dev.ID.Hex())
 	appsData, err := db.Search("applications", query, 100, 0)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -432,24 +441,26 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Create AWS client.
-	awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
-	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
-	}
+	if env != "testing" {
+		// Create AWS client.
+		awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
+		if err != nil {
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
+			})
+			return
+		}
 
-	// Remove the aws instance.
-	err = awsClient.RemoveInstance(app.InstanceID)
-	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
+		// Remove the aws instance.
+		err = awsClient.RemoveInstance(app.InstanceID)
+		if err != nil {
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
+			})
+			return
+		}
 	}
 
 	// Remove the app from the db.
@@ -602,5 +613,5 @@ func getDev(token string) (*schemas.Developer, error) {
 		return devRes.Developer, nil
 	}
 
-	return nil, err
+	return nil, errors.New(devRes.Err)
 }
