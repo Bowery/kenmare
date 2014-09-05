@@ -365,8 +365,9 @@ func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]string{
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status": requests.STATUS_SUCCESS,
+		"application": app,
 	})
 }
 
