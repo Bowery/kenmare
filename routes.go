@@ -106,6 +106,14 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	err = validateConfig(ami, instanceType)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+	}
+
 	// Get developer via token from Broome.
 	dev, err := getDev(token)
 	if err != nil {
@@ -366,7 +374,7 @@ func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
-		"status": requests.STATUS_SUCCESS,
+		"status":      requests.STATUS_SUCCESS,
 		"application": app,
 	})
 }

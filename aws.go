@@ -60,29 +60,9 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 		return "", "", errors.New("ami id and instance type required.")
 	}
 
-	// Validate ami and instance type.
-	isValidAMI := false
-	for _, a := range validAMIs {
-		if a == ami {
-			isValidAMI = true
-			break
-		}
-	}
-
-	if !isValidAMI {
-		return "", "", fmt.Errorf("%s is an invalid ami", ami)
-	}
-
-	isValidInstanceType := false
-	for _, i := range validInstanceTypes {
-		if i == instanceType {
-			isValidInstanceType = true
-			break
-		}
-	}
-
-	if !isValidInstanceType {
-		return "", "", fmt.Errorf("%s is an invalid instance type", instanceType)
+	err = validateConfig(ami, instanceType)
+	if err != nil {
+		return "", "", err
 	}
 
 	securityGroupId := defaultSecurityGroup
@@ -207,4 +187,32 @@ func (c *AWSClient) createSecurityGroup(appID string, ports []int) (string, erro
 	}
 
 	return id, nil
+}
+
+func validateConfig(ami, instanceType string) error {
+	isValidAMI := false
+	for _, a := range validAMIs {
+		if a == ami {
+			isValidAMI = true
+			break
+		}
+	}
+
+	if !isValidAMI {
+		return fmt.Errorf("%s is an invalid ami", ami)
+	}
+
+	isValidInstanceType := false
+	for _, i := range validInstanceTypes {
+		if i == instanceType {
+			isValidInstanceType = true
+			break
+		}
+	}
+
+	if !isValidInstanceType {
+		return fmt.Errorf("%s is an invalid instance type", instanceType)
+	}
+
+	return nil
 }
