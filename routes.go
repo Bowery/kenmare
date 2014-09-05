@@ -161,6 +161,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		EnvID:       envID,
 		DeveloperID: dev.ID.Hex(),
 		Status:      "provisioning",
+		Name:        body.Name,
 		Start:       body.Start,
 		Build:       body.Build,
 		LocalPath:   body.LocalPath,
