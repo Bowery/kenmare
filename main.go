@@ -12,15 +12,17 @@ import (
 
 var (
 	db   *gorc.Client
-	env  = flag.String("env", "development", "Mode to run Kepler in.")
-	port = flag.String("port", ":3000", "Port to listen on.")
+	env  string
+	port string
 )
 
 func main() {
+	flag.StringVar(&env, "env", "development", "Mode to run Kepler in.")
+	flag.StringVar(&port, "port", ":3000", "Port to listen on.")
 	flag.Parse()
 
 	orchestrateKey := config.OrchestrateDevKey
-	if *env == "production" {
+	if env == "production" {
 		orchestrateKey = config.OrchestrateProdKey
 	}
 	db = gorc.NewClient(orchestrateKey)
@@ -34,5 +36,5 @@ func main() {
 
 	app := negroni.Classic()
 	app.UseHandler(&SlashHandler{router})
-	app.Run(*port)
+	app.Run(port)
 }
