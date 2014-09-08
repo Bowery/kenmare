@@ -394,12 +394,24 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	id := vars["id"]
 
 	token := req.FormValue("token")
-	awsAccessKey := req.FormValue("awsAccessKey")
-	awsSecretKey := req.FormValue("awsSecretKey")
-	if token == "" || awsAccessKey == "" || awsSecretKey == "" {
+	awsAccessKey := req.FormValue("aws_access_key")
+	awsSecretKey := req.FormValue("aws_secret_key")
+
+	missingFields := []string{}
+	if token == "" {
+		missingFields = append(missingFields, "Token")
+	}
+	if awsAccessKey == "" {
+		missingFields = append(missingFields, "AWS Key")
+	}
+	if awsSecretKey == "" {
+		missingFields = append(missingFields, "AWS Secret")
+	}
+
+	if len(missingFields) > 0 {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
-			"error":  "token required",
+			"error":  strings.Join(missingFields, ", ") + " are required.",
 		})
 		return
 	}
