@@ -397,21 +397,10 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	awsAccessKey := req.FormValue("aws_access_key")
 	awsSecretKey := req.FormValue("aws_secret_key")
 
-	missingFields := []string{}
 	if token == "" {
-		missingFields = append(missingFields, "Token")
-	}
-	if awsAccessKey == "" {
-		missingFields = append(missingFields, "AWS Key")
-	}
-	if awsSecretKey == "" {
-		missingFields = append(missingFields, "AWS Secret")
-	}
-
-	if len(missingFields) > 0 {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
-			"error":  strings.Join(missingFields, ", ") + " are required.",
+			"error":  "token required",
 		})
 		return
 	}
@@ -453,7 +442,7 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if env != "testing" {
+	if env != "testing" && awsAccessKey != "" && awsSecretKey != "" {
 		// Create AWS client.
 		awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
 		if err != nil {
