@@ -3,11 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"labix.org/v2/mgo/bson"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"labix.org/v2/mgo/bson"
 
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/requests"
@@ -602,7 +603,7 @@ func TestRemoveApplication(t *testing.T) {
 	defer server.Close()
 	defer startBroome().Close()
 
-	query := "?awsAccessKey=someaccess&awsSecretKey=somesecret&token=" + devs["apps"].Token
+	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=" + devs["apps"].Token
 	req, err := http.NewRequest("DELETE", server.URL+"/applications/"+createdApp.ID+query, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -659,7 +660,7 @@ func TestRemoveApplicationBadToken(t *testing.T) {
 	defer server.Close()
 	defer startBroome().Close()
 
-	query := "?awsAccessKey=someaccess&awsSecretKey=somesecret&token=sometoken"
+	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=sometoken"
 	req, err := http.NewRequest("DELETE", server.URL+"/applications/"+createdApp.ID+query, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -688,7 +689,7 @@ func TestRemoveApplicationBadID(t *testing.T) {
 	defer server.Close()
 	defer startBroome().Close()
 
-	query := "?awsAccessKey=someaccess&awsSecretKey=somesecret&token=" + devs["apps"].Token
+	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=" + devs["apps"].Token
 	req, err := http.NewRequest("DELETE", server.URL+"/applications/randomid"+query, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -717,7 +718,7 @@ func TestRemoveApplicationUnauthorized(t *testing.T) {
 	defer server.Close()
 	defer startBroome().Close()
 
-	query := "?awsAccessKey=someaccess&awsSecretKey=somesecret&token=" + devs["noapps"].Token
+	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=" + devs["noapps"].Token
 	req, err := http.NewRequest("DELETE", server.URL+"/applications/"+createdApp.ID+query, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -757,7 +758,7 @@ func TestRemoveApplicationAdmin(t *testing.T) {
 		createdApp = createResp.Application
 	}
 
-	query := "?awsAccessKey=someaccess&awsSecretKey=somesecret&token=" + devs["admin"].Token
+	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=" + devs["admin"].Token
 	req, err := http.NewRequest("DELETE", server.URL+"/applications/"+createdApp.ID+query, nil)
 	if err != nil {
 		t.Fatal(err)
