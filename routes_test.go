@@ -12,6 +12,7 @@ import (
 
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/requests"
+	"github.com/Bowery/gopackages/rollbar"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/gorilla/mux"
 	"github.com/orchestrate-io/gorc"
@@ -66,6 +67,7 @@ var devs = map[string]*schemas.Developer{
 var createdApp *schemas.Application
 
 func init() {
+	rollbarC = rollbar.NewClient("", "testing")
 	db = gorc.NewClient(config.OrchestrateDevKey)
 	env = "testing" // Disables the aws features.
 }
