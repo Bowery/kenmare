@@ -5,15 +5,17 @@ import (
 	"flag"
 
 	"github.com/Bowery/gopackages/config"
+	"github.com/Bowery/gopackages/rollbar"
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
 	"github.com/orchestrate-io/gorc"
 )
 
 var (
-	db   *gorc.Client
-	env  string
-	port string
+	rollbarC *rollbar.Client
+	db       *gorc.Client
+	env      string
+	port     string
 )
 
 func main() {
@@ -21,6 +23,7 @@ func main() {
 	flag.StringVar(&port, "port", ":3000", "Port to listen on.")
 	flag.Parse()
 
+	rollbarC = rollbar.NewClient(config.RollbarToken, env)
 	orchestrateKey := config.OrchestrateDevKey
 	if env == "production" {
 		orchestrateKey = config.OrchestrateProdKey

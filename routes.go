@@ -83,6 +83,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
 	if err != nil {
+		rollbarC.Report(err, nil)
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -109,6 +110,9 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 	err = validateConfig(ami, instanceType)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"body": body,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -118,6 +122,9 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	// Get developer via token from Broome.
 	dev, err := getDev(token)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"body": body,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -130,6 +137,10 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" {
 		awsClient, err = NewAWSClient(awsAccessKey, awsSecretKey)
 		if err != nil {
+			rollbarC.Report(err, map[string]interface{}{
+				"body": body,
+				"dev":  dev,
+			})
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  err.Error(),
@@ -146,6 +157,10 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			port = strings.Trim(port, " ")
 			num, err := strconv.Atoi(port)
 			if err != nil {
+				rollbarC.Report(err, map[string]interface{}{
+					"body": body,
+					"dev":  dev,
+				})
 				r.JSON(rw, http.StatusBadRequest, map[string]string{
 					"status": requests.STATUS_FAILED,
 					"error":  fmt.Sprintf("invalid port %s", port),
@@ -176,6 +191,11 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	// Write to Orchestrate.
 	_, err = db.Put("applications", appID, app)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"body": body,
+			"dev":  dev,
+			"app":  app,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -232,6 +252,9 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 
 	dev, err := getDev(token)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"token": token,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -242,6 +265,9 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 	query := fmt.Sprintf(`developerId:"%s"`, dev.ID.Hex())
 	appsData, err := db.Search("applications", query, 100, 0)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"dev": dev,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -252,6 +278,9 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 	apps := make([]schemas.Application, len(appsData.Results))
 	for i, a := range appsData.Results {
 		if err := a.Value(&apps[i]); err != nil {
+			rollbarC.Report(err, map[string]interface{}{
+				"dev": dev,
+			})
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  err.Error(),
@@ -272,6 +301,9 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 
 	appData, err := db.Get("applications", id)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"id": id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -281,6 +313,9 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 
 	app := schemas.Application{}
 	if err := appData.Value(&app); err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"id": id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -322,6 +357,10 @@ func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	// Get the developer to check if authorized.
 	dev, err := getDev(token)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"body": body,
+			"id":   id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -332,6 +371,10 @@ func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	// Get the application.
 	appData, err := db.Get("applications", id)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"body": body,
+			"id":   id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -341,6 +384,10 @@ func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
 
 	app := new(schemas.Application)
 	if err := appData.Value(app); err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"body": body,
+			"id":   id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -376,6 +423,10 @@ func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
 
 	_, err = db.Put("applications", app.ID, app)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"app": app,
+			"id":  id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -408,6 +459,10 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	// Get the developer to check if authorized.
 	dev, err := getDev(token)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"id":    id,
+			"token": token,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -417,6 +472,10 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 
 	appData, err := db.Get("applications", id)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"dev": dev,
+			"id":  id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -426,6 +485,10 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 
 	app := new(schemas.Application)
 	if err := appData.Value(app); err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"dev": dev,
+			"id":  id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -446,6 +509,10 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		// Create AWS client.
 		awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
 		if err != nil {
+			rollbarC.Report(err, map[string]interface{}{
+				"dev": dev,
+				"app": app,
+			})
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  err.Error(),
@@ -456,6 +523,10 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		// Remove the aws instance.
 		err = awsClient.RemoveInstance(app.InstanceID)
 		if err != nil {
+			rollbarC.Report(err, map[string]interface{}{
+				"dev": dev,
+				"app": app,
+			})
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  err.Error(),
@@ -467,6 +538,10 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	// Remove the app from the db.
 	err = db.Delete("applications", id)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"dev": dev,
+			"app": app,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -485,6 +560,9 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 
 	envData, err := db.Get("environments", id)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"id": id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -494,6 +572,9 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 
 	env := schemas.Environment{}
 	if err := envData.Value(&env); err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"id": id,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -503,6 +584,9 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 
 	eventsData, err := db.GetEvents("events", id, "event")
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"env": env,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -513,6 +597,9 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	var events []schemas.Event = make([]schemas.Event, len(eventsData.Results))
 	for i, e := range eventsData.Results {
 		if err := e.Value(&events[i]); err != nil {
+			rollbarC.Report(err, map[string]interface{}{
+				"env": env,
+			})
 			r.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  err.Error(),
@@ -539,6 +626,7 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
 	if err != nil {
+		rollbarC.Report(err, nil)
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -560,6 +648,9 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 
 	_, err = db.Get("environments", envID)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"body": body,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -576,6 +667,10 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 
 	err = db.PutEvent("events", envID, "event", event)
 	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"envID": envID,
+			"event": event,
+		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
