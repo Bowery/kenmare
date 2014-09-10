@@ -505,34 +505,29 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Attempt to delete the aws instance.
 	if env != "testing" && awsAccessKey != "" && awsSecretKey != "" {
-		// Create AWS client.
-		awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
-		if err != nil {
-			rollbarC.Report(err, map[string]interface{}{
-				"dev": dev,
-				"app": app,
-			})
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
-				"status": requests.STATUS_FAILED,
-				"error":  err.Error(),
-			})
-			return
-		}
+		go func() {
+			// Create AWS client.
+			awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
+			if err != nil {
+				rollbarC.Report(err, map[string]interface{}{
+					"dev": dev,
+					"app": app,
+				})
+				return
+			}
 
-		// Remove the aws instance.
-		err = awsClient.RemoveInstance(app.InstanceID)
-		if err != nil {
-			rollbarC.Report(err, map[string]interface{}{
-				"dev": dev,
-				"app": app,
-			})
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
-				"status": requests.STATUS_FAILED,
-				"error":  err.Error(),
-			})
-			return
-		}
+			// Remove the aws instance.
+			err = awsClient.RemoveInstance(app.InstanceID)
+			if err != nil {
+				rollbarC.Report(err, map[string]interface{}{
+					"dev": dev,
+					"app": app,
+				})
+				return
+			}
+		}()
 	}
 
 	// Remove the app from the db.
