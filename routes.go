@@ -179,16 +179,17 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	envID := uuid.New()
 
 	app := schemas.Application{
-		ID:          appID,
-		EnvID:       envID,
-		DeveloperID: dev.ID.Hex(),
-		Status:      "provisioning",
-		Name:        body.Name,
-		Start:       body.Start,
-		Build:       body.Build,
-		LocalPath:   body.LocalPath,
-		RemotePath:  body.RemotePath,
-		CreatedAt:   time.Now(),
+		ID:              appID,
+		EnvID:           envID,
+		DeveloperID:     dev.ID.Hex(),
+		Status:          "provisioning",
+		Name:            body.Name,
+		Start:           body.Start,
+		Build:           body.Build,
+		LocalPath:       body.LocalPath,
+		RemotePath:      body.RemotePath,
+		CreatedAt:       time.Now(),
+		IsSyncAvailable: false,
 	}
 
 	// Write to Orchestrate.
@@ -479,9 +480,8 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 			"dev": dev,
 			"id":  id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
+		r.JSON(rw, http.StatusOK, map[string]string{
+			"status": requests.STATUS_SUCCESS,
 		})
 		return
 	}
