@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"code.google.com/p/go-uuid/uuid"
 
@@ -187,6 +188,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		Build:       body.Build,
 		LocalPath:   body.LocalPath,
 		RemotePath:  body.RemotePath,
+		CreatedAt:   time.Now(),
 	}
 
 	// Write to Orchestrate.
@@ -506,8 +508,9 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Attempt to delete the aws instance.
-	if env != "testing" && awsAccessKey != "" && awsSecretKey != "" {
+	// // Attempt to delete the aws instance.
+	if env != "testing" && (awsAccessKey != "undefined" && awsAccessKey != "") &&
+		(awsSecretKey != "undefined" && awsSecretKey != "") {
 		go func() {
 			// Create AWS client.
 			awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
