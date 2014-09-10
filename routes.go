@@ -536,20 +536,7 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Remove the app from the db.
-	err = db.Delete("applications", id)
-	if err != nil {
-		log.Println("cant find in db", err)
-		rollbarC.Report(err, map[string]interface{}{
-			"dev": dev,
-			"app": app,
-		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
-	}
-
+	db.Delete("applications", id) // yolo(steve): wild'n'out.
 	r.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.STATUS_SUCCESS,
 	})
