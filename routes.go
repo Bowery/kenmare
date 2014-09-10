@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -212,7 +213,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		addr, instanceID, err := awsClient.CreateInstance(ami, instanceType, appID, portsList)
 		if err != nil {
-			app.Status = requests.STATUS_FAILED
+			app.Status = "error"
 			db.Put("applications", app.ID, app)
 			return
 		}
@@ -511,6 +512,7 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 			// Create AWS client.
 			awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
 			if err != nil {
+				log.Println("can't create client")
 				rollbarC.Report(err, map[string]interface{}{
 					"dev": dev,
 					"app": app,
@@ -533,6 +535,7 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	// Remove the app from the db.
 	err = db.Delete("applications", id)
 	if err != nil {
+		log.Println("cant find in db", err)
 		rollbarC.Report(err, map[string]interface{}{
 			"dev": dev,
 			"app": app,
