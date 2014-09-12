@@ -13,7 +13,7 @@ import (
 
 var (
 	validAMIs = []string{
-		"ami-722ff51a", // this will change
+		"ami-7219b41a", // this will change
 	}
 	validInstanceTypes = []string{
 		"t1.micro",
