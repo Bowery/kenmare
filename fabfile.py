@@ -1,7 +1,7 @@
 from fabric.api import *
 import requests
 
-project = "kepler"
+project = "kenmare"
 repository = "git@github.com:Bowery/" + project + ".git"
 hosts = [
   'ubuntu@ec2-54-166-150-115.compute-1.amazonaws.com'
