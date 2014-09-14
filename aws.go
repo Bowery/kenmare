@@ -13,7 +13,7 @@ import (
 
 var (
 	validAMIs = []string{
-		"ami-7219b41a", // this will change
+		"ami-9460ccfc", // this will change
 	}
 	validInstanceTypes = []string{
 		"t1.micro",
@@ -75,6 +75,12 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 		}
 	}
 
+	// Select first key.
+	keys, err := c.client.KeyPairs(nil, nil)
+	if err != nil {
+		return "", "", err
+	}
+
 	// Set instance config.
 	opts := &ec2.RunInstances{
 		ImageId:      ami,
@@ -86,6 +92,10 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 				Id: securityGroupId,
 			},
 		},
+	}
+
+	if len(keys.Keys) > 0 {
+		opts.KeyName = keys.Keys[0].Name
 	}
 
 	// Send RunInstance request.
