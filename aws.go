@@ -68,11 +68,13 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 	securityGroupId := defaultSecurityGroup
 
 	// Create a new security group if ports are provided.
-	if len(ports) > 0 {
-		securityGroupId, err = c.createSecurityGroup(appID, ports)
-		if err != nil {
-			return "", "", err
-		}
+	if ports == nil || len(ports) == 0 {
+		ports = []int{}
+	}
+
+	securityGroupId, err = c.createSecurityGroup(appID, ports)
+	if err != nil {
+		return "", "", err
 	}
 
 	// Select first key.
@@ -164,20 +166,25 @@ func (c *AWSClient) createSecurityGroup(appID string, ports []int) (string, erro
 	id := res.Id
 	perms := []ec2.IPPerm{}
 
-	// Add unique ports.
-	for _, p := range ports {
-		for _, r := range requiredPorts {
-			if p != r {
-				ports = append(ports, r)
-			}
-		}
+	for _, r := range requiredPorts {
+		ports = append(ports, r)
+	}
 
-		for _, s := range suggestedPorts {
-			if p != s {
-				ports = append(ports, s)
-			}
+	for _, s := range suggestedPorts {
+		ports = append(ports, s)
+	}
+
+	duplicate := make(map[int]bool)
+	j := 0
+	for i, p := range ports {
+		if !duplicate[p] {
+			duplicate[p] = true
+			ports[j] = ports[i]
+			j++
 		}
 	}
+
+	ports = ports[:j]
 
 	// Create ec2.IPPerm.
 	for _, p := range ports {
