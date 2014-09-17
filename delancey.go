@@ -19,7 +19,6 @@ type commandsReq struct {
 }
 
 func DelanceyExec(app schemas.Application, cmds []string) error {
-	return nil
 	req := &commandsReq{
 		AppID: app.ID,
 		Cmds:  cmds,

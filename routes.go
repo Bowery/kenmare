@@ -79,6 +79,15 @@ type applicationReq struct {
 	RemotePath   string `json:"remotePath"`
 }
 
+type Res struct {
+	Status string `json:"status"`
+	Err    string `json:"error"`
+}
+
+func (res *Res) Error() string {
+	return res.Err
+}
+
 // createEnvironmentHandler creates a new environment
 func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	var body applicationReq
@@ -94,6 +103,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	ami := body.AMI
+	envID := body.EnvID
 	token := body.Token
 	instanceType := body.InstanceType
 	awsAccessKey := body.AWSAccessKey
@@ -119,6 +129,26 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
+	}
+
+	sourceEnv := new(schemas.Environment)
+	if envID != "" {
+		envData, err := db.Get("environments", envID)
+		if err != nil {
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
+			})
+			return
+		}
+		err = envData.Value(sourceEnv)
+		if err != nil {
+			r.JSON(rw, http.StatusInternalServerError, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
+			})
+			return
+		}
 	}
 
 	// Get developer via token from Broome.
@@ -176,7 +206,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Create app.
 	appID := uuid.New()
-	envID := uuid.New()
+	envID = uuid.New()
 
 	app := schemas.Application{
 		ID:              appID,
@@ -221,6 +251,25 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
+		app.Location = addr
+		app.InstanceID = instanceID
+
+		// Run commands on the new instance.
+		if sourceEnv != nil {
+			cmds := []string{}
+			for _, e := range sourceEnv.Events {
+				if e.Type == "command" {
+					cmds = append(cmds, e.Body)
+				}
+			}
+
+			err = DelanceyExec(app, cmds)
+			if err != nil {
+				// todo(steve): something with this error.
+				log.Println(err)
+			}
+		}
+
 		env := &schemas.Environment{
 			ID:           envID,
 			AMI:          ami,
@@ -231,8 +280,6 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		// created, update the application.
 		_, err = db.Put("environments", envID, env)
 		if err == nil {
-			app.Location = addr
-			app.InstanceID = instanceID
 			app.Status = "running"
 			db.Put("applications", app.ID, app)
 		}
