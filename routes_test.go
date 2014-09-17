@@ -74,7 +74,7 @@ func init() {
 
 func createApplicationMock(addr string) (*createApplicationRes, error) {
 	appReq := &applicationReq{
-		AMI:          validAMIs[0],
+		EnvID:        "2336c5ae-f03a-405f-b48c-d46540ab8702",
 		Token:        devs["apps"].Token,
 		InstanceType: validInstanceTypes[0],
 		AWSAccessKey: "access",
@@ -131,7 +131,7 @@ func TestCreateApplicationMissing(t *testing.T) {
 	defer startBroome().Close()
 
 	appReq := &applicationReq{
-		AMI:   validAMIs[0],
+		EnvID: "2336c5ae-f03a-405f-b48c-d46540ab8702",
 		Token: devs["apps"].Token,
 		Ports: "22,80,4000",
 	}
@@ -167,7 +167,7 @@ func TestCreateApplicationBadToken(t *testing.T) {
 	defer startBroome().Close()
 
 	appReq := &applicationReq{
-		AMI:          validAMIs[0],
+		EnvID:        "2336c5ae-f03a-405f-b48c-d46540ab8702",
 		Token:        "badtoken",
 		InstanceType: validInstanceTypes[0],
 		AWSAccessKey: "access",

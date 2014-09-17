@@ -12,9 +12,6 @@ import (
 )
 
 var (
-	validAMIs = []string{
-		"ami-346ec15c", // this will change
-	}
 	validInstanceTypes = []string{
 		"t1.micro",
 		"m1.small",
@@ -60,7 +57,7 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 		return "", "", errors.New("ami id and instance type required.")
 	}
 
-	err = validateConfig(ami, instanceType)
+	err = validateConfig(instanceType)
 	if err != nil {
 		return "", "", err
 	}
@@ -206,19 +203,7 @@ func (c *AWSClient) createSecurityGroup(appID string, ports []int) (string, erro
 	return id, nil
 }
 
-func validateConfig(ami, instanceType string) error {
-	isValidAMI := false
-	for _, a := range validAMIs {
-		if a == ami {
-			isValidAMI = true
-			break
-		}
-	}
-
-	if !isValidAMI {
-		return fmt.Errorf("%s is an invalid ami", ami)
-	}
-
+func validateConfig(instanceType string) error {
 	isValidInstanceType := false
 	for _, i := range validInstanceTypes {
 		if i == instanceType {
