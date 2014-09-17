@@ -257,9 +257,12 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		// Run commands on the new instance.
 		if sourceEnv != nil {
 			cmds := []string{}
-			for _, e := range sourceEnv.Events {
-				if e.Type == "command" {
-					cmds = append(cmds, e.Body)
+			env, err := getEnv(sourceEnv.ID)
+			if err == nil {
+				for _, e := range env.Events {
+					if e.Type == "command" {
+						cmds = append(cmds, e.Body)
+					}
 				}
 			}
 
@@ -274,6 +277,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			ID:           envID,
 			AMI:          ami,
 			InstanceType: instanceType,
+			CreatedAt:    time.Now(),
 		}
 
 		// Create env. If the environment is successfully
@@ -598,7 +602,7 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
-	envData, err := db.Get("environments", id)
+	env, err := getEnv(id)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
@@ -607,48 +611,8 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
-		return
 	}
 
-	env := schemas.Environment{}
-	if err := envData.Value(&env); err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"id": id,
-		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	eventsData, err := db.GetEvents("events", id, "event")
-	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"env": env,
-		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	var events []schemas.Event = make([]schemas.Event, len(eventsData.Results))
-	for i, e := range eventsData.Results {
-		if err := e.Value(&events[i]); err != nil {
-			rollbarC.Report(err, map[string]interface{}{
-				"env": env,
-			})
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
-				"status": requests.STATUS_FAILED,
-				"error":  err.Error(),
-			})
-			return
-		}
-	}
-
-	env.Events = events
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"environment": env,
@@ -700,9 +664,10 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 
 	id := uuid.New()
 	event := &schemas.Event{
-		ID:   id,
-		Type: typ,
-		Body: bdy,
+		ID:        id,
+		Type:      typ,
+		Body:      bdy,
+		CreatedAt: time.Now(),
 	}
 
 	err = db.PutEvent("events", envID, "event", event)
@@ -722,6 +687,33 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 		"status": requests.STATUS_SUCCESS,
 		"event":  event,
 	})
+}
+
+func getEnv(id string) (schemas.Environment, error) {
+	envData, err := db.Get("environments", id)
+	if err != nil {
+		return schemas.Environment{}, err
+	}
+
+	env := schemas.Environment{}
+	if err := envData.Value(&env); err != nil {
+		return schemas.Environment{}, err
+	}
+
+	eventsData, err := db.GetEvents("events", id, "event")
+	if err != nil {
+		return schemas.Environment{}, err
+	}
+
+	var events []schemas.Event = make([]schemas.Event, len(eventsData.Results))
+	for i, e := range eventsData.Results {
+		if err := e.Value(&events[i]); err != nil {
+			return schemas.Environment{}, err
+		}
+	}
+
+	env.Events = events
+	return env, nil
 }
 
 type developerRes struct {
