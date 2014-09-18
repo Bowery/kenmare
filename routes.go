@@ -305,9 +305,6 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 
 	appData, err := db.Get("applications", id)
 	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"id": id,
-		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
