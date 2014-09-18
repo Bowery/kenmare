@@ -303,6 +303,14 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
+	if id == "c2c1b0dd-b9ff-48d6-86e6-beef1a069293" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "invalid app",
+		})
+		return
+	}
+
 	appData, err := db.Get("applications", id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
