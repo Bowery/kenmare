@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -65,7 +66,6 @@ func healthzHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 type applicationReq struct {
-	AMI          string `json:"ami"`
 	EnvID        string `json:"envID"`
 	Token        string `json:"token"`
 	InstanceType string `json:"instance_type"`
@@ -77,6 +77,15 @@ type applicationReq struct {
 	Build        string `json:"build"`
 	LocalPath    string `json:"localPath"`
 	RemotePath   string `json:"remotePath"`
+}
+
+type Res struct {
+	Status string `json:"status"`
+	Err    string `json:"error"`
+}
+
+func (res *Res) Error() string {
+	return res.Err
 }
 
 // createEnvironmentHandler creates a new environment
@@ -93,7 +102,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	ami := body.AMI
+	envID := body.EnvID
 	token := body.Token
 	instanceType := body.InstanceType
 	awsAccessKey := body.AWSAccessKey
@@ -101,7 +110,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	ports := body.Ports
 
 	// Validate request.
-	if ami == "" || token == "" || instanceType == "" ||
+	if token == "" || instanceType == "" ||
 		awsAccessKey == "" || awsSecretKey == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
@@ -110,7 +119,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = validateConfig(ami, instanceType)
+	err = validateConfig(instanceType)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
@@ -119,6 +128,21 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
+	}
+
+	// If an environment id is not specified, default.
+	if envID == "" {
+		envID = "22fb37d7-0f22-4e43-a9d5-994d9711b353"
+	}
+
+	// Fetch environment.
+	sourceEnv, err := getEnv(envID)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
 	}
 
 	// Get developer via token from Broome.
@@ -174,9 +198,9 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// Create app.
+	// Create app. This also will create a new environment.
 	appID := uuid.New()
-	envID := uuid.New()
+	envID = uuid.New()
 
 	app := schemas.Application{
 		ID:              appID,
@@ -214,25 +238,48 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		addr, instanceID, err := awsClient.CreateInstance(ami, instanceType, appID, portsList)
+		addr, instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList)
 		if err != nil {
 			app.Status = "error"
 			db.Put("applications", app.ID, app)
 			return
 		}
 
-		env := &schemas.Environment{
-			ID:           envID,
-			AMI:          ami,
-			InstanceType: instanceType,
+		app.Location = addr
+		app.InstanceID = instanceID
+
+		// Run commands on the new instance.
+		cmds := []string{}
+		if err == nil {
+			for _, e := range sourceEnv.Events {
+				if e.Type == "command" {
+					cmds = append(cmds, e.Body)
+				}
+			}
+		}
+
+		err = DelanceyExec(app, cmds)
+		if err != nil {
+			// todo(steve): something with this error.
+			log.Println(err)
+		}
+
+		// todo(steve): figure out ports.
+		newEnv := &schemas.Environment{
+			ID:        envID,
+			AMI:       sourceEnv.AMI,
+			CreatedAt: time.Now(),
 		}
 
 		// Create env. If the environment is successfully
-		// created, update the application.
-		_, err = db.Put("environments", envID, env)
+		// created, write the events to orchestrate and
+		// update the application.
+		_, err = db.Put("environments", envID, newEnv)
 		if err == nil {
-			app.Location = addr
-			app.InstanceID = instanceID
+			for _, e := range sourceEnv.Events {
+				// todo(steve): maybe handle the error
+				db.PutEvent("events", envID, "event", e)
+			}
 			app.Status = "running"
 			db.Put("applications", app.ID, app)
 		}
@@ -551,7 +598,7 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
-	envData, err := db.Get("environments", id)
+	env, err := getEnv(id)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
@@ -560,48 +607,8 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
-		return
 	}
 
-	env := schemas.Environment{}
-	if err := envData.Value(&env); err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"id": id,
-		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	eventsData, err := db.GetEvents("events", id, "event")
-	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"env": env,
-		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	var events []schemas.Event = make([]schemas.Event, len(eventsData.Results))
-	for i, e := range eventsData.Results {
-		if err := e.Value(&events[i]); err != nil {
-			rollbarC.Report(err, map[string]interface{}{
-				"env": env,
-			})
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
-				"status": requests.STATUS_FAILED,
-				"error":  err.Error(),
-			})
-			return
-		}
-	}
-
-	env.Events = events
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"environment": env,
@@ -653,9 +660,10 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 
 	id := uuid.New()
 	event := &schemas.Event{
-		ID:   id,
-		Type: typ,
-		Body: bdy,
+		ID:        id,
+		Type:      typ,
+		Body:      bdy,
+		CreatedAt: time.Now(),
 	}
 
 	err = db.PutEvent("events", envID, "event", event)
@@ -675,6 +683,48 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 		"status": requests.STATUS_SUCCESS,
 		"event":  event,
 	})
+}
+
+// byCreatedAt implements the Sort interface for
+// a slice of events.
+type byCreatedAt []schemas.Event
+
+func (v byCreatedAt) Len() int           { return len(v) }
+func (v byCreatedAt) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
+func (v byCreatedAt) Less(i, j int) bool { return v[i].CreatedAt.Unix() < v[j].CreatedAt.Unix() }
+
+// getEnv retrieves an environment and it's associated events
+// from Orchestrate. If an environment and events are found,
+// the events are sorted in ascending order.
+func getEnv(id string) (schemas.Environment, error) {
+	envData, err := db.Get("environments", id)
+	if err != nil {
+		return schemas.Environment{}, err
+	}
+
+	env := schemas.Environment{}
+	if err := envData.Value(&env); err != nil {
+		return schemas.Environment{}, err
+	}
+
+	eventsData, err := db.GetEvents("events", id, "event")
+	if err != nil {
+		return schemas.Environment{}, err
+	}
+
+	var events []schemas.Event = make([]schemas.Event, len(eventsData.Results))
+	for i, e := range eventsData.Results {
+		if err := e.Value(&events[i]); err != nil {
+			return schemas.Environment{}, err
+		}
+	}
+
+	env.Events = events
+
+	// Sort events ascending.
+	sort.Sort(byCreatedAt(env.Events))
+
+	return env, nil
 }
 
 type developerRes struct {
