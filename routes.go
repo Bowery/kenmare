@@ -269,6 +269,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			ID:        envID,
 			AMI:       sourceEnv.AMI,
 			CreatedAt: time.Now(),
+			Count:     0,
 		}
 
 		// Create env. If the environment is successfully
@@ -283,6 +284,10 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			app.Status = "running"
 			db.Put("applications", app.ID, app)
 		}
+
+		// Increment count
+		sourceEnv.Count++
+		db.Put("environments", sourceEnv.ID, sourceEnv)
 	}()
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
