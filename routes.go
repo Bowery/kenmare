@@ -240,8 +240,16 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		addr, instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList)
 		if err != nil {
+			appError := &schemas.Error{
+				ID:        uuid.New(),
+				AppID:     app.ID,
+				Body:      err.Error(),
+				Active:    true,
+				CreatedAt: time.Now(),
+			}
 			app.Status = "error"
 			db.Put("applications", app.ID, app)
+			db.PutEvent("errors", app.ID, "error", appError)
 			return
 		}
 
@@ -363,20 +371,8 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	appData, err := db.Get("applications", id)
+	app, err := getApp(id)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	app := schemas.Application{}
-	if err := appData.Value(&app); err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"id": id,
-		})
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
@@ -688,6 +684,35 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 		"status": requests.STATUS_SUCCESS,
 		"event":  event,
 	})
+}
+
+// getApp retrieves an application and it's associated errors
+// from Orchestrate.
+func getApp(id string) (schemas.Application, error) {
+	appData, err := db.Get("applications", id)
+	if err != nil {
+		return schemas.Application{}, err
+	}
+
+	app := schemas.Application{}
+	if err := appData.Value(&app); err != nil {
+		return schemas.Application{}, err
+	}
+
+	errorsData, err := db.GetEvents("errors", id, "error")
+	if err != nil {
+		return schemas.Application{}, err
+	}
+
+	var errors []schemas.Error = make([]schemas.Error, len(errorsData.Results))
+	for i, e := range errorsData.Results {
+		if err := e.Value(&errors[i]); err != nil {
+			return schemas.Application{}, err
+		}
+	}
+
+	app.Errors = errors
+	return app, nil
 }
 
 // byCreatedAt implements the Sort interface for
