@@ -366,14 +366,15 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(len(validApps))
 
-	for _, app := range validApps {
-		go func(wg *sync.WaitGroup, app *schemas.Application) {
-			errors, err := getAppErrors(app.ID)
+	for i, _ := range validApps {
+		go func(wg *sync.WaitGroup, i int) {
+			a := validApps[i]
+			errors, err := getAppErrors(a.ID)
 			if err == nil {
-				app.Errors = errors
+				validApps[i].Errors = errors
 			}
 			wg.Done()
-		}(&wg, &app)
+		}(&wg, i)
 	}
 
 	wg.Wait()
