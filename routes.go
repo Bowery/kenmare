@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -353,9 +354,33 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	// Filter out any applications that may be owned
+	// by a different developer.
+	validApps := []schemas.Application{}
+	for _, app := range apps {
+		if app.DeveloperID == dev.ID.Hex() {
+			validApps = append(validApps, app)
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(validApps))
+
+	for _, app := range validApps {
+		go func(wg *sync.WaitGroup, app *schemas.Application) {
+			errors, err := getAppErrors(app.ID)
+			if err == nil {
+				app.Errors = errors
+			}
+			wg.Done()
+		}(&wg, &app)
+	}
+
+	wg.Wait()
+
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.STATUS_FOUND,
-		"applications": apps,
+		"applications": validApps,
 	})
 }
 
@@ -699,20 +724,30 @@ func getApp(id string) (schemas.Application, error) {
 		return schemas.Application{}, err
 	}
 
-	errorsData, err := db.GetEvents("errors", id, "error")
+	errors, err := getAppErrors(id)
 	if err != nil {
 		return schemas.Application{}, err
+	}
+
+	app.Errors = errors
+	return app, nil
+}
+
+// getAppErrors get an app's errors from Orchestrate.
+func getAppErrors(id string) ([]schemas.Error, error) {
+	errorsData, err := db.GetEvents("errors", id, "error")
+	if err != nil {
+		return []schemas.Error{}, err
 	}
 
 	var errors []schemas.Error = make([]schemas.Error, len(errorsData.Results))
 	for i, e := range errorsData.Results {
 		if err := e.Value(&errors[i]); err != nil {
-			return schemas.Application{}, err
+			return []schemas.Error{}, err
 		}
 	}
 
-	app.Errors = errors
-	return app, nil
+	return errors, nil
 }
 
 // byCreatedAt implements the Sort interface for
