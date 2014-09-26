@@ -605,6 +605,7 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 			secret, _ := url.QueryUnescape(awsSecretKey)
 
 			// Create AWS client.
+			awsClient, err := NewAWSClient(access, secret)
 			if err != nil {
 				log.Println("can't create client")
 				rollbarC.Report(err, map[string]interface{}{
