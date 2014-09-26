@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -239,23 +240,31 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
+		// Create instance.
 		addr, instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList)
+
+		// Get current app state since the developer may
+		// have made changes since.
+		currentApp, _ := getApp(app.ID)
+
+		// Check error.
 		if err != nil {
 			appError := &schemas.Error{
 				ID:        uuid.New(),
-				AppID:     app.ID,
+				AppID:     currentApp.ID,
 				Body:      err.Error(),
 				Active:    true,
 				CreatedAt: time.Now(),
 			}
-			app.Status = "error"
-			db.Put("applications", app.ID, app)
-			db.PutEvent("errors", app.ID, "error", appError)
+
+			currentApp.Status = "error"
+			db.Put("applications", currentApp.ID, currentApp)
+			db.PutEvent("errors", currentApp.ID, "error", appError)
 			return
 		}
 
-		app.Location = addr
-		app.InstanceID = instanceID
+		currentApp.Location = addr
+		currentApp.InstanceID = instanceID
 
 		// Run commands on the new instance.
 		cmds := []string{}
@@ -290,8 +299,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 				// todo(steve): maybe handle the error
 				db.PutEvent("events", envID, "event", e)
 			}
-			app.Status = "running"
-			db.Put("applications", app.ID, app)
+			currentApp.Status = "running"
+			db.Put("applications", currentApp.ID, currentApp)
 		}
 
 		// Increment count
@@ -591,8 +600,11 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" && (awsAccessKey != "undefined" && awsAccessKey != "") &&
 		(awsSecretKey != "undefined" && awsSecretKey != "") {
 		go func() {
+			// Unescape keys from query.
+			access, _ := url.QueryUnescape(awsAccessKey)
+			secret, _ := url.QueryUnescape(awsSecretKey)
+
 			// Create AWS client.
-			awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
 			if err != nil {
 				log.Println("can't create client")
 				rollbarC.Report(err, map[string]interface{}{
