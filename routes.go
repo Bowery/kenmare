@@ -536,8 +536,6 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
-	log.Println(req.URL.RawQuery)
-
 	token := req.FormValue("token")
 	awsAccessKey := req.FormValue("aws_access_key")
 	awsSecretKey := req.FormValue("aws_secret_key")
@@ -606,11 +604,7 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 			access, _ := url.QueryUnescape(awsAccessKey)
 			secret, _ := url.QueryUnescape(awsSecretKey)
 
-			log.Println(awsAccessKey, access)
-			log.Println(awsSecretKey, secret)
-
 			// Create AWS client.
-			awsClient, err := NewAWSClient(access, secret)
 			if err != nil {
 				log.Println("can't create client")
 				rollbarC.Report(err, map[string]interface{}{
