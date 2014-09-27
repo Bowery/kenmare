@@ -17,6 +17,8 @@ var (
 		"m1.small",
 		"m1.medium",
 		"m1.large",
+		"m3.medium",
+		"m3.large",
 	}
 	defaultSecurityGroup = "sg-70e0851a"
 	requiredPorts        = []int{32056, 32058}
