@@ -53,15 +53,15 @@ func NewAWSClient(accessKey, secretKey string) (*AWSClient, error) {
 // ami and instanceType. It returns the public address and the instance id
 // on success. An error is returned if it can't be created or the state can't
 // be retrieved.
-func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int) (addr string, id string, err error) {
+func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int) (string, error) {
 	// An ami id and instance type are required.
 	if ami == "" || instanceType == "" {
-		return "", "", errors.New("ami id and instance type required.")
+		return "", errors.New("ami id and instance type required.")
 	}
 
-	err = validateConfig(instanceType)
+	err := validateConfig(instanceType)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	securityGroupId := defaultSecurityGroup
@@ -73,13 +73,13 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 
 	securityGroupId, err = c.createSecurityGroup(appID, ports)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	// Select first key.
 	keys, err := c.client.KeyPairs(nil, nil)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	// Set instance config.
@@ -102,34 +102,34 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 	// Send RunInstance request.
 	res, err := c.client.RunInstances(opts)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	if len(res.Instances) != 1 {
-		return "", "", errors.New("Failed to create required number of instances.")
+		return "", errors.New("Failed to create required number of instances.")
 	}
 
-	instanceID := res.Instances[0].InstanceId
+	return res.Instances[0].InstanceId, nil
+}
 
-	// Check the state of the instance every second. Once the
-	// instance is "running" return the public address.
-	// Note: the address is unavailable until it is in a
-	// running state.
+// CheckInstance checks the state of an instance every second.
+// Once the instance is "running" return the address.
+func (c *AWSClient) CheckInstance(instanceID string) (string, error) {
 	for {
 		<-time.After(time.Second)
 		res, err := c.client.Instances([]string{instanceID}, nil)
 		if err != nil {
-			return "", "", err
+			return "", err
 		}
 
 		if len(res.Reservations) != 1 {
-			return "", "", errors.New("Unexpected response.")
+			return "", errors.New("Unexpected response.")
 		}
 
 		instance := res.Reservations[0].Instances[0]
 		state := instance.State.Name
 		if state == "running" {
-			return instance.PublicIpAddress, instanceID, nil
+			return instance.PublicIpAddress, nil
 		}
 	}
 }

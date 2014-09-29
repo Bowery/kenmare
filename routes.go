@@ -239,12 +239,35 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		// Create instance.
-		addr, instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList)
-
 		// Get current app state since the developer may
 		// have made changes since.
 		currentApp, _ := getApp(app.ID)
+
+		// Create instance.
+		instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList)
+		if err != nil {
+			currentApp.Status = "error"
+			appError := &schemas.Error{
+				ID:        uuid.New(),
+				AppID:     currentApp.ID,
+				Body:      err.Error(),
+				Active:    true,
+				CreatedAt: time.Now(),
+			}
+			db.Put("applications", currentApp.ID, currentApp)
+			db.PutEvent("errors", currentApp.ID, "error", appError)
+		}
+
+		// Update application.
+		currentApp.InstanceID = instanceID
+		db.Put("applications", currentApp.ID, currentApp)
+
+		// Check Instance.
+		addr, err := awsClient.CheckInstance(instanceID)
+
+		// Get current app state since the developer may
+		// have made changes since.
+		currentApp, _ = getApp(app.ID)
 
 		// Check error.
 		if err != nil {
