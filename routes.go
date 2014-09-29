@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -600,12 +599,8 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" && (awsAccessKey != "undefined" && awsAccessKey != "") &&
 		(awsSecretKey != "undefined" && awsSecretKey != "") {
 		go func() {
-			// Unescape keys from query.
-			access, _ := url.QueryUnescape(awsAccessKey)
-			secret, _ := url.QueryUnescape(awsSecretKey)
-
 			// Create AWS client.
-			awsClient, err := NewAWSClient(access, secret)
+			awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
 			if err != nil {
 				log.Println("can't create client")
 				rollbarC.Report(err, map[string]interface{}{
