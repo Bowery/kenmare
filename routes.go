@@ -50,6 +50,7 @@ var Routes = []*Route{
 	&Route{"PUT", "/applications/{id}", updateApplicationByID},
 	&Route{"DELETE", "/applications/{id}", removeApplicationByID},
 	&Route{"GET", "/environments/{id}", getEnvironmentByID},
+	&Route{"PUT", "/environments/{id}", updateEnvironmentByID},
 	&Route{"POST", "/events", createEventHandler},
 }
 
@@ -669,6 +670,88 @@ func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
+		"environment": env,
+	})
+}
+
+type updateEnvReq struct {
+	*schemas.Environment
+	Token string `json:"token"`
+}
+
+func updateEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	var body updateEnvReq
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&body)
+	if err != nil {
+		rollbarC.Report(err, nil)
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Get environment.
+	env, err := getEnv(id)
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"id": id,
+		})
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Get developer.
+	dev, err := getDev(body.Token)
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"id": id,
+		})
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Only admins and creators can edit an environment.
+	if !dev.IsAdmin && dev.ID.Hex() != env.DeveloperID {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "developer does not have permission",
+		})
+		return
+	}
+
+	// Only name and description can be updated.
+	if env.Name != body.Name {
+		env.Name = body.Name
+	}
+	if env.Description != body.Description {
+		env.Description = body.Description
+	}
+
+	_, err = db.Put("environments", env.ID, env)
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"id": id,
+		})
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":      requests.STATUS_SUCCESS,
 		"environment": env,
 	})
 }
