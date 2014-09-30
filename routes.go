@@ -320,7 +320,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		if err == nil {
 			for _, e := range sourceEnv.Events {
 				// todo(steve): maybe handle the error
-				db.PutEvent("events", envID, "event", e)
+				db.PutEvent("environments", envID, "command", e)
 			}
 			currentApp.Status = "running"
 			db.Put("applications", currentApp.ID, currentApp)
@@ -807,7 +807,7 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 		CreatedAt: time.Now(),
 	}
 
-	err = db.PutEvent("events", envID, "event", event)
+	err = db.PutEvent("environments", envID, typ, event)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"envID": envID,
@@ -887,7 +887,7 @@ func getEnv(id string) (schemas.Environment, error) {
 		return schemas.Environment{}, err
 	}
 
-	eventsData, err := db.GetEvents("events", id, "event")
+	eventsData, err := db.GetEvents("environments", id, "command")
 	if err != nil {
 		return schemas.Environment{}, err
 	}
