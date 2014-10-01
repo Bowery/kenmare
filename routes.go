@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"sort"
 	"strconv"
@@ -245,6 +246,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		currentApp, _ := getApp(app.ID)
 
 		// Create instance.
+		log.Println("creating instance")
 		instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList)
 		if err != nil {
 			currentApp.Status = "error"
@@ -264,6 +266,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		db.Put("applications", currentApp.ID, currentApp)
 
 		// Check Instance.
+		log.Println("checking instance")
 		addr, err := awsClient.CheckInstance(instanceID)
 
 		// Get current app state since the developer may
@@ -289,6 +292,20 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		currentApp.Location = addr
 		currentApp.InstanceID = instanceID
 
+		// Wait till the agent is up and running.
+		for {
+			<-time.After(5 * time.Second)
+			log.Println("checking agent availability")
+			url := net.JoinHostPort(addr, config.BoweryAgentProdSyncPort)
+			res, err := http.Get(fmt.Sprintf("http://%s", url))
+			if err != nil {
+				continue
+			}
+			if res.StatusCode == http.StatusOK {
+				break
+			}
+		}
+
 		// Run commands on the new instance.
 		cmds := []string{}
 		if err == nil {
@@ -299,7 +316,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 
-		err = DelanceyExec(app, cmds)
+		log.Println(fmt.Sprintf("executing %d commands", len(cmds)))
+		err = DelanceyExec(currentApp, cmds)
 		if err != nil {
 			// todo(steve): something with this error.
 			log.Println(err)
