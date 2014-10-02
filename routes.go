@@ -135,7 +135,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// If an environment id is not specified, default.
 	if envID == "" {
-		envID = "22fb37d7-0f22-4e43-a9d5-994d9711b353"
+		envID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
 	}
 
 	// Fetch environment.
