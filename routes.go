@@ -423,6 +423,10 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 			if err == nil {
 				validApps[i].Errors = errors
 			}
+			env, err := getEnv(a.EnvID)
+			if err == nil {
+				validApps[i].Environment = env
+			}
 			wg.Done()
 		}(&wg, i)
 	}
@@ -454,6 +458,11 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 			"error":  err.Error(),
 		})
 		return
+	}
+
+	env, err := getEnv(app.EnvID)
+	if err == nil {
+		app.Environment = env
 	}
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
