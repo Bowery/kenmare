@@ -47,11 +47,12 @@ var Routes = []*Route{
 	&Route{"GET", "/healthz", healthzHandler},
 	&Route{"POST", "/applications", createApplicationHandler},
 	&Route{"GET", "/applications", getApplicationsHandler},
-	&Route{"GET", "/applications/{id}", getApplicationByID},
-	&Route{"PUT", "/applications/{id}", updateApplicationByID},
-	&Route{"DELETE", "/applications/{id}", removeApplicationByID},
-	&Route{"GET", "/environments/{id}", getEnvironmentByID},
-	&Route{"PUT", "/environments/{id}", updateEnvironmentByID},
+	&Route{"GET", "/applications/{id}", getApplicationByIDHandler},
+	&Route{"PUT", "/applications/{id}", updateApplicationByIDHandler},
+	&Route{"DELETE", "/applications/{id}", removeApplicationByIDHandler},
+	&Route{"GET", "/environments", searchEnvironmentsHandler},
+	&Route{"GET", "/environments/{id}", getEnvironmentByIDHandler},
+	&Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
 	&Route{"POST", "/events", createEventHandler},
 }
 
@@ -439,7 +440,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
+func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -471,7 +472,7 @@ func getApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
+func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	body := new(applicationReq)
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
@@ -582,7 +583,7 @@ func updateApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
+func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -680,7 +681,46 @@ func removeApplicationByID(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func getEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
+// searchEnvironments
+func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query().Get("query")
+	if len(query) <= 0 {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "a valid query is required",
+		})
+		return
+	}
+
+	envsData, err := db.Search("environments", query, 100, 0)
+	if err != nil {
+		rollbarC.Report(err, nil)
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	envs := make([]schemas.Environment, len(envsData.Results))
+	for i, a := range envsData.Results {
+		if err := a.Value(&envs[i]); err != nil {
+			rollbarC.Report(err, nil)
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
+			})
+			return
+		}
+	}
+
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":       requests.STATUS_FOUND,
+		"environments": envs,
+	})
+}
+
+func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -706,7 +746,7 @@ type updateEnvReq struct {
 	Token string `json:"token"`
 }
 
-func updateEnvironmentByID(rw http.ResponseWriter, req *http.Request) {
+func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
