@@ -2,9 +2,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -20,7 +22,12 @@ import (
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/gorilla/mux"
+	goversion "github.com/hashicorp/go-version"
 	"github.com/unrolled/render"
+)
+
+var (
+	clientS3Addr = "http://desktop.bowery.io.s3.amazonaws.com"
 )
 
 type Route struct {
@@ -54,6 +61,8 @@ var Routes = []*Route{
 	&Route{"GET", "/environments/{id}", getEnvironmentByIDHandler},
 	&Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
 	&Route{"POST", "/events", createEventHandler},
+	&Route{"GET", "/client/check", clientCheckHandler},
+	&Route{"GET", "/client/download", clientDownloadHandler},
 }
 
 var r = render.New(render.Options{
@@ -893,6 +902,81 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 		"event":  event,
 	})
 }
+
+type squirrelUpdateRes struct {
+	URL       string `json:"url"`
+	Name      string `json:"name,omitempty"`
+	Notes     string `json:"notes,omitempty"`
+	Published string `json:"pub_date,omitempty"`
+}
+
+func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
+	clientVersion := req.FormValue("version")
+	os := req.FormValue("os")
+	arch := req.FormValue("arch")
+	if clientVersion == "" || os == "" || arch == "" {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte("Missing fields. Required fields: os, arch, and version"))
+		return
+	}
+
+	// Download the current version.
+	res, err := http.Get(clientS3Addr + "/VERSION")
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+	defer res.Body.Close()
+
+	var body bytes.Buffer
+	_, err = io.Copy(&body, res.Body)
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+	curVersion := strings.TrimSpace(body.String())
+
+	// Check versions.
+	var curV *goversion.Version
+	clientV, err := goversion.NewVersion(clientVersion)
+	if err == nil {
+		curV, err = goversion.NewVersion(curVersion)
+	}
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+
+	if clientV.Equal(curV) {
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Setup url to go to download endpoint.
+	if req.URL.Scheme == "" {
+		req.URL.Scheme = "http"
+	}
+	if req.URL.Host == "" {
+		if env == "production" {
+			req.URL.Host = "kenmare.io"
+		} else {
+			req.URL.Host = "localhost" + port
+		}
+	}
+	query := req.URL.Query()
+	query.Set("version", curVersion)
+	req.URL.RawQuery = query.Encode()
+	req.URL.Path = "/client/download"
+
+	r.JSON(rw, http.StatusOK, &squirrelUpdateRes{
+		URL: req.URL.String(),
+	})
+}
+
+func clientDownloadHandler(rw http.ResponseWriter, req *http.Request) {}
 
 // getApp retrieves an application and it's associated errors
 // from Orchestrate.
