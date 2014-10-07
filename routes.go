@@ -2,7 +2,10 @@
 package main
 
 import (
+	"archive/tar"
+	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -976,7 +979,80 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func clientDownloadHandler(rw http.ResponseWriter, req *http.Request) {}
+func clientDownloadHandler(rw http.ResponseWriter, req *http.Request) {
+	version := req.FormValue("version")
+	os := req.FormValue("os")
+	arch := req.FormValue("arch")
+	if version == "" || os == "" || arch == "" {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte("Missing fields. Required fields: os, arch, and version"))
+		return
+	}
+
+	// Download the tar contents.
+	addr := fmt.Sprintf("%s/%s_%s_%s.tar.gz", clientS3Addr, version, os, arch)
+	res, err := http.Get(addr)
+	if err != nil {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+	defer res.Body.Close()
+
+	gzipReader, err := gzip.NewReader(res.Body)
+	if err != nil {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+	defer gzipReader.Close()
+	tarReader := tar.NewReader(gzipReader)
+	var body bytes.Buffer
+	zipWriter := zip.NewWriter(&body)
+
+	// Copy tar contents over to zip.
+	var zipErr error
+	for {
+		header, err := tarReader.Next()
+		if err != nil && err != io.EOF {
+			zipErr = err
+			break
+		}
+		if err == io.EOF || header == nil {
+			break
+		}
+
+		fileHeader, err := zip.FileInfoHeader(header.FileInfo())
+		if err != nil {
+			zipErr = err
+			break
+		}
+		fileHeader.Name = header.Name // Restore actual path.
+
+		writer, err := zipWriter.CreateHeader(fileHeader)
+		if err != nil {
+			zipErr = err
+			break
+		}
+
+		_, err = io.Copy(writer, tarReader)
+		if err != nil {
+			zipErr = err
+			break
+		}
+	}
+
+	if zipErr == nil {
+		zipErr = zipWriter.Close()
+	}
+	if zipErr != nil {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte(zipErr.Error()))
+		return
+	}
+
+	io.Copy(rw, &body)
+}
 
 // getApp retrieves an application and it's associated errors
 // from Orchestrate.
