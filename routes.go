@@ -328,6 +328,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		newEnv := &schemas.Environment{
 			ID:        envID,
 			AMI:       sourceEnv.AMI,
+			DeveloperID: dev.ID.Hex(),
 			CreatedAt: time.Now(),
 			Count:     0,
 		}
