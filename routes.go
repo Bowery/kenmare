@@ -2,9 +2,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -20,6 +22,7 @@ import (
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/gorilla/mux"
+	goversion "github.com/hashicorp/go-version"
 	"github.com/unrolled/render"
 )
 
@@ -54,6 +57,7 @@ var Routes = []*Route{
 	&Route{"GET", "/environments/{id}", getEnvironmentByIDHandler},
 	&Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
 	&Route{"POST", "/events", createEventHandler},
+	&Route{"GET", "/client/check", clientCheckHandler},
 }
 
 var r = render.New(render.Options{
@@ -326,11 +330,11 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		// todo(steve): figure out ports.
 		newEnv := &schemas.Environment{
-			ID:        envID,
-			AMI:       sourceEnv.AMI,
+			ID:          envID,
+			AMI:         sourceEnv.AMI,
 			DeveloperID: dev.ID.Hex(),
-			CreatedAt: time.Now(),
-			Count:     0,
+			CreatedAt:   time.Now(),
+			Count:       0,
 		}
 
 		// Create env. If the environment is successfully
@@ -891,6 +895,70 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status": requests.STATUS_SUCCESS,
 		"event":  event,
+	})
+}
+
+type squirrelUpdateRes struct {
+	URL       string `json:"url"`
+	Name      string `json:"name,omitempty"`
+	Notes     string `json:"notes,omitempty"`
+	Published string `json:"pub_date,omitempty"`
+}
+
+func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
+	clientVersion := req.FormValue("version")
+	os := req.FormValue("os")
+	arch := req.FormValue("arch")
+	if clientVersion == "" || os == "" || arch == "" {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte("Missing fields. Required fields: os, arch, and version"))
+		return
+	}
+
+	// Download the current version.
+	res, err := http.Get(config.ClientS3Addr + "/VERSION")
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte("Couldn't retrieve latest version information"))
+		return
+	}
+
+	var body bytes.Buffer
+	_, err = io.Copy(&body, res.Body)
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+	curVersion := strings.TrimSpace(body.String())
+
+	// Check versions.
+	var curV *goversion.Version
+	clientV, err := goversion.NewVersion(clientVersion)
+	if err == nil {
+		curV, err = goversion.NewVersion(curVersion)
+	}
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+
+	// If it's the same or greater, there's no updates to do.
+	if clientV.Equal(curV) || clientV.GreaterThan(curV) {
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	r.JSON(rw, http.StatusOK, &squirrelUpdateRes{
+		URL: fmt.Sprintf("%s/%s_%s_%s.zip", config.ClientS3Addr, curVersion, os, arch),
 	})
 }
 
