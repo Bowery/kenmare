@@ -2,10 +2,7 @@
 package main
 
 import (
-	"archive/tar"
-	"archive/zip"
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,10 +24,6 @@ import (
 	"github.com/gorilla/mux"
 	goversion "github.com/hashicorp/go-version"
 	"github.com/unrolled/render"
-)
-
-var (
-	clientS3Addr = "http://desktop.bowery.io.s3.amazonaws.com"
 )
 
 type Route struct {
@@ -65,7 +58,6 @@ var Routes = []*Route{
 	&Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
 	&Route{"POST", "/events", createEventHandler},
 	&Route{"GET", "/client/check", clientCheckHandler},
-	&Route{"GET", "/client/download", clientDownloadHandler},
 }
 
 var r = render.New(render.Options{
@@ -338,11 +330,11 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		// todo(steve): figure out ports.
 		newEnv := &schemas.Environment{
-			ID:        envID,
-			AMI:       sourceEnv.AMI,
+			ID:          envID,
+			AMI:         sourceEnv.AMI,
 			DeveloperID: dev.ID.Hex(),
-			CreatedAt: time.Now(),
-			Count:     0,
+			CreatedAt:   time.Now(),
+			Count:       0,
 		}
 
 		// Create env. If the environment is successfully
@@ -924,13 +916,19 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Download the current version.
-	res, err := http.Get(clientS3Addr + "/VERSION")
+	res, err := http.Get(config.ClientS3Addr + "/VERSION")
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write([]byte(err.Error()))
 		return
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte("Couldn't retrieve latest version information"))
+		return
+	}
 
 	var body bytes.Buffer
 	_, err = io.Copy(&body, res.Body)
@@ -953,105 +951,15 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if clientV.Equal(curV) {
+	// If it's the same or greater, there's no updates to do.
+	if clientV.Equal(curV) || clientV.GreaterThan(curV) {
 		rw.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	// Setup url to go to download endpoint.
-	if req.URL.Scheme == "" {
-		req.URL.Scheme = "http"
-	}
-	if req.URL.Host == "" {
-		if env == "production" {
-			req.URL.Host = "kenmare.io"
-		} else {
-			req.URL.Host = "localhost" + port
-		}
-	}
-	query := req.URL.Query()
-	query.Set("version", curVersion)
-	req.URL.RawQuery = query.Encode()
-	req.URL.Path = "/client/download"
-
 	r.JSON(rw, http.StatusOK, &squirrelUpdateRes{
-		URL: req.URL.String(),
+		URL: fmt.Sprintf("%s/%s_%s_%s.zip", config.ClientS3Addr, curVersion, os, arch),
 	})
-}
-
-func clientDownloadHandler(rw http.ResponseWriter, req *http.Request) {
-	version := req.FormValue("version")
-	os := req.FormValue("os")
-	arch := req.FormValue("arch")
-	if version == "" || os == "" || arch == "" {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write([]byte("Missing fields. Required fields: os, arch, and version"))
-		return
-	}
-
-	// Download the tar contents.
-	addr := fmt.Sprintf("%s/%s_%s_%s.tar.gz", clientS3Addr, version, os, arch)
-	res, err := http.Get(addr)
-	if err != nil {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write([]byte(err.Error()))
-		return
-	}
-	defer res.Body.Close()
-
-	gzipReader, err := gzip.NewReader(res.Body)
-	if err != nil {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write([]byte(err.Error()))
-		return
-	}
-	defer gzipReader.Close()
-	tarReader := tar.NewReader(gzipReader)
-	var body bytes.Buffer
-	zipWriter := zip.NewWriter(&body)
-
-	// Copy tar contents over to zip.
-	var zipErr error
-	for {
-		header, err := tarReader.Next()
-		if err != nil && err != io.EOF {
-			zipErr = err
-			break
-		}
-		if err == io.EOF || header == nil {
-			break
-		}
-
-		fileHeader, err := zip.FileInfoHeader(header.FileInfo())
-		if err != nil {
-			zipErr = err
-			break
-		}
-		fileHeader.Name = header.Name // Restore actual path.
-
-		writer, err := zipWriter.CreateHeader(fileHeader)
-		if err != nil {
-			zipErr = err
-			break
-		}
-
-		_, err = io.Copy(writer, tarReader)
-		if err != nil {
-			zipErr = err
-			break
-		}
-	}
-
-	if zipErr == nil {
-		zipErr = zipWriter.Close()
-	}
-	if zipErr != nil {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write([]byte(zipErr.Error()))
-		return
-	}
-
-	io.Copy(rw, &body)
 }
 
 // getApp retrieves an application and it's associated errors
