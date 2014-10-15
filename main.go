@@ -38,6 +38,6 @@ func main() {
 	}
 
 	app := negroni.Classic()
-	app.UseHandler(&SlashHandler{router})
+	app.UseHandler(&SlashHandler{&CorsHandler{router}})
 	app.Run(port)
 }
