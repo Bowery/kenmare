@@ -256,6 +256,25 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Create env. If the environment is successfully
+	// created, write the events to orchestrate and
+	// update the application.
+	newEnv := schemas.Environment{
+		ID:          envID,
+		AMI:         sourceEnv.AMI,
+		DeveloperID: dev.ID.Hex(),
+		CreatedAt:   time.Now(),
+		Count:       0,
+	}
+	_, err = db.Put("environments", envID, &newEnv)
+	if err == nil {
+		for _, e := range sourceEnv.Events {
+			// todo(steve): maybe handle the error
+			db.PutEvent("environments", envID, "command", e)
+		}
+	}
+	app.Environment = newEnv
+
 	// Create instance in background. Update the application status
 	// given the results of this process.
 	go func() {
@@ -345,27 +364,9 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			log.Println(err)
 		}
 
-		// todo(steve): figure out ports.
-		newEnv := &schemas.Environment{
-			ID:          envID,
-			AMI:         sourceEnv.AMI,
-			DeveloperID: dev.ID.Hex(),
-			CreatedAt:   time.Now(),
-			Count:       0,
-		}
-
-		// Create env. If the environment is successfully
-		// created, write the events to orchestrate and
-		// update the application.
-		_, err = db.Put("environments", envID, newEnv)
-		if err == nil {
-			for _, e := range sourceEnv.Events {
-				// todo(steve): maybe handle the error
-				db.PutEvent("environments", envID, "command", e)
-			}
-			currentApp.Status = "running"
-			db.Put("applications", currentApp.ID, currentApp)
-		}
+		// Update app status.
+		currentApp.Status = "running"
+		db.Put("applications", currentApp.ID, currentApp)
 
 		// Increment count
 		sourceEnv.Count++
@@ -481,11 +482,6 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"error":  err.Error(),
 		})
 		return
-	}
-
-	env, err := getEnv(app.EnvID)
-	if err == nil {
-		app.Environment = env
 	}
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
@@ -1009,8 +1005,14 @@ func getApp(id string) (schemas.Application, error) {
 	if err != nil {
 		return schemas.Application{}, err
 	}
-
 	app.Errors = errors
+
+	env, err := getEnv(app.EnvID)
+	if err != nil {
+		return schemas.Application{}, err
+	}
+	app.Environment = env
+
 	return app, nil
 }
 
