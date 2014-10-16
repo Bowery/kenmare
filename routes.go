@@ -599,9 +599,22 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	application, err := getApp(app.ID)
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"app": app,
+			"id":  id,
+		})
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
-		"application": app,
+		"application": application,
 	})
 }
 
