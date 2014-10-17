@@ -5,6 +5,7 @@ import (
 	"flag"
 
 	"github.com/Bowery/gopackages/config"
+	"github.com/Bowery/gopackages/keen"
 	"github.com/Bowery/gopackages/rollbar"
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
@@ -13,6 +14,7 @@ import (
 
 var (
 	rollbarC *rollbar.Client
+	keenC    keen.Client
 	db       *gorc.Client
 	env      string
 	port     string
@@ -24,6 +26,10 @@ func main() {
 	flag.Parse()
 
 	rollbarC = rollbar.NewClient(config.RollbarToken, env)
+	keenC = keen.Client{
+		WriteKey:  config.KeenWriteKey,
+		ProjectID: config.KeenProjectID,
+	}
 	orchestrateKey := config.OrchestrateDevKey
 	if env == "production" {
 		orchestrateKey = config.OrchestrateProdKey
