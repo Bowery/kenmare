@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 
 	"github.com/Bowery/gopackages/config"
+	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/Bowery/gopackages/slack"
@@ -714,7 +716,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// // Attempt to delete the aws instance.
+	// Attempt to delete the aws instance.
 	if env != "testing" && (awsAccessKey != "undefined" && awsAccessKey != "") &&
 		(awsSecretKey != "undefined" && awsSecretKey != "") {
 		go func() {
@@ -736,6 +738,27 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 					"dev": dev,
 					"app": app,
 				})
+
+				// Notify user of error via email.
+				msg, _ := email.NewEmail(
+					"Unable to terminate instance",
+					email.Address{
+						Name:  "Bowery Support",
+						Email: "support@bowery.io",
+					},
+					[]email.Address{
+						email.Address{
+							Name:  dev.Name,
+							Email: dev.Email,
+						},
+					},
+					filepath.Join(staticDir, "error-removing-instance.tmpl"),
+					map[string]string{
+						"Name":       strings.Split(dev.Name, " ")[0],
+						"InstanceID": app.InstanceID,
+					},
+				)
+				go emailClient.Send(msg)
 				return
 			}
 		}()

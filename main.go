@@ -3,8 +3,11 @@ package main
 
 import (
 	"flag"
+	"os"
+	"path/filepath"
 
 	"github.com/Bowery/gopackages/config"
+	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/keen"
 	"github.com/Bowery/gopackages/rollbar"
 	"github.com/codegangsta/negroni"
@@ -13,11 +16,14 @@ import (
 )
 
 var (
-	rollbarC *rollbar.Client
-	keenC    keen.Client
-	db       *gorc.Client
-	env      string
-	port     string
+	rollbarC    *rollbar.Client
+	keenC       keen.Client
+	emailClient *email.Client
+	dir         string
+	staticDir   string
+	db          *gorc.Client
+	env         string
+	port        string
 )
 
 func main() {
@@ -30,6 +36,9 @@ func main() {
 		WriteKey:  config.KeenWriteKey,
 		ProjectID: config.KeenProjectID,
 	}
+	emailClient = email.NewClient()
+	dir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+	staticDir = filepath.Join(dir, "static")
 	orchestrateKey := config.OrchestrateDevKey
 	if env == "production" {
 		orchestrateKey = config.OrchestrateProdKey
