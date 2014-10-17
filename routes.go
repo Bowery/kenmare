@@ -21,6 +21,7 @@ import (
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
+	"github.com/Bowery/gopackages/slack"
 	"github.com/gorilla/mux"
 	goversion "github.com/hashicorp/go-version"
 	"github.com/unrolled/render"
@@ -222,6 +223,9 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			portsList[i] = num
 		}
 	}
+
+	msg := fmt.Sprintf("%s created a new application", dev.Name)
+	go slack.SendMessage("#activity", msg, "Drizzy Drake")
 
 	// Create app. This also will create a new environment.
 	appID := uuid.New()
