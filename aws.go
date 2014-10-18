@@ -22,7 +22,7 @@ var (
 	}
 	defaultSecurityGroup = "sg-70e0851a"
 	requiredPorts        = []int{32056, 32058}
-	suggestedPorts       = []int{22, 80, 3306, 6379, 8080, 27017}
+	suggestedPorts       = []int{22, 80, 443, 3000, 3306, 6379, 8080, 27017}
 )
 
 // AWSClient is a ec2 client.
