@@ -731,6 +731,10 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 				return
 			}
 
+			if app.InstanceID == "" {
+				return
+			}
+
 			// Remove the aws instance.
 			err = awsClient.RemoveInstance(app.InstanceID)
 			if err != nil {
