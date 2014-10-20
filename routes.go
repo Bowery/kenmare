@@ -780,6 +780,21 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+var defaultEnvs = []schemas.Environment{
+	schemas.Environment{
+		ID:          "feb1310b-2303-4265-b8a3-4d02e8f67c01",
+		Name:        "Ubuntu 14.04 LTS",
+		Description: "The leading OS for server and PC",
+		Count:       34,
+	},
+	schemas.Environment{
+		ID:          "a8eab00b-2d60-4643-a0a8-52d2fa59df77",
+		Name:        "Node 0.10",
+		Description: "Stock Ubuntu 14.01 LTS with Node 0.10",
+		Count:       125,
+	},
+}
+
 // searchEnvironments
 func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query().Get("query")
@@ -787,6 +802,14 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "a valid query is required",
+		})
+		return
+	}
+
+	if query == "default" {
+		r.JSON(rw, http.StatusOK, map[string]interface{}{
+			"status":       requests.STATUS_FOUND,
+			"environments": defaultEnvs,
 		})
 		return
 	}
