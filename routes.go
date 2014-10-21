@@ -793,6 +793,24 @@ var defaultEnvs = []schemas.Environment{
 		Description: "Stock Ubuntu 14.01 LTS with Node 0.10",
 		Count:       125,
 	},
+	schemas.Environment{
+		ID:          "172e5243-39f0-478a-904d-eb31cc2595a6",
+		Name:        "Wordpress",
+		Description: "Simple image with nginx, php-fpm, mysql and default database",
+		Count:       7,
+	},
+	schemas.Environment{
+		ID:          "b13fec32-a388-4e2c-9150-ff1dde3e0a30",
+		Name:        "Drupal",
+		Description: "Simple setup supporting nginx, php-fpm, defaultdb in MySQL",
+		Count:       5,
+	},
+	schemas.Environment{
+		ID:          "1df49d30-e8eb-4e15-8a5d-e136bd31c78d",
+		Name:        "Joomla!",
+		Description: "Preconfigured stack for Joomla! with nginx, php-fpm and mysql preconfigured",
+		Count:       2,
+	},
 }
 
 // searchEnvironments
