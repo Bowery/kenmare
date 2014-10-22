@@ -788,9 +788,9 @@ var defaultEnvs = []schemas.Environment{
 		Count:       34,
 	},
 	schemas.Environment{
-		ID:          "a8eab00b-2d60-4643-a0a8-52d2fa59df77",
+		ID:          "1fbcd81a-de9f-4a3b-8b8a-cbc2f451e8bf",
 		Name:        "Node 0.10",
-		Description: "Stock Ubuntu 14.01 LTS with Node 0.10",
+		Description: "Stock Ubuntu 14.04 LTS with Node 0.10, grunt-cli, nodemon and forever installed globally.",
 		Count:       125,
 	},
 	schemas.Environment{
