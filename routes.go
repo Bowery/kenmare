@@ -782,10 +782,10 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 var defaultEnvs = []schemas.Environment{
 	schemas.Environment{
-		ID:          "feb1310b-2303-4265-b8a3-4d02e8f67c01",
+		ID:          "2f9e2fb0-e2aa-4055-ba76-d9af93d3a547",
 		Name:        "Ubuntu 14.04 LTS",
-		Description: "The leading OS for server and PC",
-		Count:       34,
+		Description: "Trusty Tahr",
+		Count:       49,
 	},
 	schemas.Environment{
 		ID:          "1fbcd81a-de9f-4a3b-8b8a-cbc2f451e8bf",
