@@ -77,6 +77,7 @@ var Routes = []*Route{
 	&Route{"GET", "/environments/{id}", getEnvironmentByIDHandler},
 	&Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
 	&Route{"POST", "/events", createEventHandler},
+	&Route{"GET", "/auth/validate-keys", validateKeysHandler},
 	&Route{"GET", "/client/check", clientCheckHandler},
 }
 
@@ -1048,6 +1049,45 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status": requests.STATUS_SUCCESS,
 		"event":  event,
+	})
+}
+
+func validateKeysHandler(rw http.ResponseWriter, req *http.Request) {
+	awsAccessKey := req.URL.Query().Get("aws_access_key")
+	awsSecretKey := req.URL.Query().Get("aws_secret_key")
+
+	if awsAccessKey == "" || awsSecretKey == "" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "Access Key and Secret Key required",
+		})
+		return
+	}
+
+	var awsClient *AWSClient
+	var err error
+	if env != "testing" {
+		awsClient, err = NewAWSClient(awsAccessKey, awsSecretKey)
+		if err != nil {
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  err.Error(),
+			})
+			return
+		}
+	}
+
+	valid := awsClient.ValidateKeys()
+	if !valid {
+		r.JSON(rw, http.StatusOK, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "invalid keys",
+		})
+		return
+	}
+
+	r.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.STATUS_SUCCESS,
 	})
 }
 
