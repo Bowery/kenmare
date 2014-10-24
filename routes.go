@@ -811,6 +811,12 @@ var defaultEnvs = []schemas.Environment{
 		Description: "Preconfigured stack for Joomla! with nginx, php-fpm and mysql preconfigured",
 		Count:       2,
 	},
+	schemas.Environment{
+		ID:          "b48819c7-18b2-4772-a8fc-c0f2166ff92e",
+		Name:        "Ruby 1.9.3 with Rails 4.1.6, Sqlite3",
+		Description: "Base Ubuntu 14.04 LTS with Ruby, Rails and Sqlite3",
+		Count:       27,
+	},
 }
 
 // searchEnvironments
