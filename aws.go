@@ -148,6 +148,15 @@ func (c *AWSClient) RemoveInstance(instanceID string) error {
 	return nil
 }
 
+// ValidateKeys runs a simple
+func (c *AWSClient) ValidateKeys() bool {
+	_, err := c.client.KeyPairs(nil, nil)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 // createSecurityGroup creates a new security group with
 // the provided ports. All ports are fully accessible and
 // operate over TCP.
