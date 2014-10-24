@@ -203,6 +203,15 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			})
 			return
 		}
+
+		valid := awsClient.ValidateKeys()
+		if !valid {
+			r.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.STATUS_FAILED,
+				"error":  "invalid keys",
+			})
+			return
+		}
 	}
 
 	var portsList []int
