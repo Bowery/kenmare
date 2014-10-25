@@ -119,7 +119,7 @@ func (res *Res) Error() string {
 
 // createEnvironmentHandler creates a new environment
 func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
+	// start := time.Now()
 	var body applicationReq
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
@@ -299,7 +299,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		start := time.Now()
+		// start := time.Now()
 
 		// Get current app state since the developer may
 		// have made changes since.
@@ -321,10 +321,10 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			db.PutEvent("errors", currentApp.ID, "error", appError)
 		}
 
-		elapsed := time.Since(start).Nanoseconds() / 1000000
-		go keenC.AddEvent("kenmare provision instance time", map[string]interface{}{
-			"duration": elapsed,
-		})
+		// elapsed := time.Since(start).Nanoseconds() / 1000000
+		// go keenC.AddEvent("kenmare provision instance time", map[string]interface{}{
+		// 	"duration": elapsed,
+		// })
 
 		// Update application.
 		currentApp.InstanceID = instanceID
@@ -397,10 +397,10 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		db.Put("environments", sourceEnv.ID, sourceEnv)
 	}()
 
-	elapsed := time.Since(start).Nanoseconds() / 1000000
-	go keenC.AddEvent("kenmare create application time", map[string]interface{}{
-		"duration": elapsed,
-	})
+	// elapsed := time.Since(start).Nanoseconds() / 1000000
+	// go keenC.AddEvent("kenmare create application time", map[string]interface{}{
+	// 	"duration": elapsed,
+	// })
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
@@ -409,7 +409,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
+	// start := time.Now()
 	token := req.FormValue("token")
 	if token == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -487,10 +487,10 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 
 	wg.Wait()
 
-	elapsed := time.Since(start).Nanoseconds() / 1000000
-	go keenC.AddEvent("kenmare get applications time", map[string]interface{}{
-		"duration": elapsed,
-	})
+	// elapsed := time.Since(start).Nanoseconds() / 1000000
+	// go keenC.AddEvent("kenmare get applications time", map[string]interface{}{
+	// 	"duration": elapsed,
+	// })
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.STATUS_FOUND,
@@ -499,7 +499,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
+	// start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -520,10 +520,10 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	elapsed := time.Since(start).Nanoseconds() / 1000000
-	go keenC.AddEvent("kenmare get application time", map[string]interface{}{
-		"duration": elapsed,
-	})
+	// elapsed := time.Since(start).Nanoseconds() / 1000000
+	// go keenC.AddEvent("kenmare get application time", map[string]interface{}{
+	// 	"duration": elapsed,
+	// })
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
@@ -532,7 +532,7 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
+	// start := time.Now()
 	body := new(applicationReq)
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
@@ -650,10 +650,10 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	elapsed := time.Since(start).Nanoseconds() / 1000000
-	go keenC.AddEvent("kenmare update application time", map[string]interface{}{
-		"duration": elapsed,
-	})
+	// elapsed := time.Since(start).Nanoseconds() / 1000000
+	// go keenC.AddEvent("kenmare update application time", map[string]interface{}{
+	// 	"duration": elapsed,
+	// })
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
@@ -662,7 +662,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
+	// start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -778,10 +778,10 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		}()
 	}
 
-	elapsed := time.Since(start).Nanoseconds() / 1000000
-	go keenC.AddEvent("kenmare remove application time", map[string]interface{}{
-		"duration": elapsed,
-	})
+	// elapsed := time.Since(start).Nanoseconds() / 1000000
+	// go keenC.AddEvent("kenmare remove application time", map[string]interface{}{
+	// 	"duration": elapsed,
+	// })
 
 	// Remove the app from the db.
 	db.Delete("applications", id) // yolo(steve): wild'n'out.
@@ -877,7 +877,7 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
+	// start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -892,10 +892,10 @@ func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		})
 	}
 
-	elapsed := time.Since(start).Nanoseconds() / 1000000
-	go keenC.AddEvent("kenmare get environment time", map[string]interface{}{
-		"duration": elapsed,
-	})
+	// elapsed := time.Since(start).Nanoseconds() / 1000000
+	// go keenC.AddEvent("kenmare get environment time", map[string]interface{}{
+	// 	"duration": elapsed,
+	// })
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
@@ -909,7 +909,7 @@ type updateEnvReq struct {
 }
 
 func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
+	// start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -980,10 +980,10 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	elapsed := time.Since(start).Nanoseconds() / 1000000
-	go keenC.AddEvent("kenmare update environment time", map[string]interface{}{
-		"duration": elapsed,
-	})
+	// elapsed := time.Since(start).Nanoseconds() / 1000000
+	// go keenC.AddEvent("kenmare update environment time", map[string]interface{}{
+	// 	"duration": elapsed,
+	// })
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
