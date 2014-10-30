@@ -957,12 +957,15 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Only name and description can be updated.
+	// Only name, description, and privacy can be updated.
 	if env.Name != body.Name {
 		env.Name = body.Name
 	}
 	if env.Description != body.Description {
 		env.Description = body.Description
+	}
+	if env.IsPrivate != body.IsPrivate {
+		env.IsPrivate = body.IsPrivate
 	}
 
 	_, err = db.Put("environments", env.ID, env)
