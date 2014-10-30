@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/mail"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -24,8 +25,10 @@ import (
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/Bowery/gopackages/slack"
+	"github.com/Bowery/gopackages/util"
 	"github.com/gorilla/mux"
 	goversion "github.com/hashicorp/go-version"
+	"github.com/stathat/go"
 	"github.com/unrolled/render"
 )
 
@@ -76,6 +79,8 @@ var Routes = []*Route{
 	&Route{"GET", "/environments", searchEnvironmentsHandler},
 	&Route{"GET", "/environments/{id}", getEnvironmentByIDHandler},
 	&Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
+	&Route{"PUT", "/environments/{id}/share", shareEnvironmentByIDHandler},
+	&Route{"DELETE", "/environments/{id}/share", revokeAcccessToEnvByIDHandler},
 	&Route{"POST", "/events", createEventHandler},
 	&Route{"GET", "/auth/validate-keys", validateKeysHandler},
 	&Route{"GET", "/client/check", clientCheckHandler},
@@ -119,7 +124,7 @@ func (res *Res) Error() string {
 
 // createEnvironmentHandler creates a new environment
 func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
-	// start := time.Now()
+	start := time.Now()
 	var body applicationReq
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
@@ -299,7 +304,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		// start := time.Now()
+		start := time.Now()
 
 		// Get current app state since the developer may
 		// have made changes since.
@@ -321,10 +326,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			db.PutEvent("errors", currentApp.ID, "error", appError)
 		}
 
-		// elapsed := time.Since(start).Nanoseconds() / 1000000
-		// go keenC.AddEvent("kenmare provision instance time", map[string]interface{}{
-		// 	"duration": elapsed,
-		// })
+		elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+		stathat.PostEZValue("kenmare provision instance time", "steve@bowery.io", elapsed)
 
 		// Update application.
 		currentApp.InstanceID = instanceID
@@ -397,10 +400,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		db.Put("environments", sourceEnv.ID, sourceEnv)
 	}()
 
-	// elapsed := time.Since(start).Nanoseconds() / 1000000
-	// go keenC.AddEvent("kenmare create application time", map[string]interface{}{
-	// 	"duration": elapsed,
-	// })
+	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+	stathat.PostEZValue("kenmare create application time", "steve@bowery.io", elapsed)
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
@@ -409,7 +410,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
-	// start := time.Now()
+	start := time.Now()
 	token := req.FormValue("token")
 	if token == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -487,10 +488,8 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 
 	wg.Wait()
 
-	// elapsed := time.Since(start).Nanoseconds() / 1000000
-	// go keenC.AddEvent("kenmare get applications time", map[string]interface{}{
-	// 	"duration": elapsed,
-	// })
+	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+	stathat.PostEZValue("kenmare get applications time", "steve@bowery.io", elapsed)
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.STATUS_FOUND,
@@ -499,7 +498,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	// start := time.Now()
+	start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -520,10 +519,8 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// elapsed := time.Since(start).Nanoseconds() / 1000000
-	// go keenC.AddEvent("kenmare get application time", map[string]interface{}{
-	// 	"duration": elapsed,
-	// })
+	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+	stathat.PostEZValue("kenmare get application time", "steve@bowery.io", elapsed)
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
@@ -532,7 +529,7 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	// start := time.Now()
+	start := time.Now()
 	body := new(applicationReq)
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
@@ -650,10 +647,8 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// elapsed := time.Since(start).Nanoseconds() / 1000000
-	// go keenC.AddEvent("kenmare update application time", map[string]interface{}{
-	// 	"duration": elapsed,
-	// })
+	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+	stathat.PostEZValue("kenmare update application time", "steve@bowery.io", elapsed)
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
@@ -662,7 +657,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	// start := time.Now()
+	start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -778,10 +773,8 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		}()
 	}
 
-	// elapsed := time.Since(start).Nanoseconds() / 1000000
-	// go keenC.AddEvent("kenmare remove application time", map[string]interface{}{
-	// 	"duration": elapsed,
-	// })
+	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+	stathat.PostEZValue("kenmare remove application time", "steve@bowery.io", elapsed)
 
 	// Remove the app from the db.
 	db.Delete("applications", id) // yolo(steve): wild'n'out.
@@ -796,36 +789,42 @@ var defaultEnvs = []schemas.Environment{
 		Name:        "Ubuntu 14.04 LTS",
 		Description: "Trusty Tahr",
 		Count:       49,
+		IsPrivate:   false,
 	},
 	schemas.Environment{
 		ID:          "1fbcd81a-de9f-4a3b-8b8a-cbc2f451e8bf",
 		Name:        "Node 0.10",
 		Description: "Stock Ubuntu 14.04 LTS with Node 0.10, grunt-cli, nodemon and forever installed globally.",
 		Count:       125,
+		IsPrivate:   false,
 	},
 	schemas.Environment{
 		ID:          "172e5243-39f0-478a-904d-eb31cc2595a6",
 		Name:        "Wordpress",
 		Description: "Simple image with nginx, php-fpm, mysql and default database",
 		Count:       7,
+		IsPrivate:   false,
 	},
 	schemas.Environment{
 		ID:          "b13fec32-a388-4e2c-9150-ff1dde3e0a30",
 		Name:        "Drupal",
 		Description: "Simple setup supporting nginx, php-fpm, defaultdb in MySQL",
 		Count:       5,
+		IsPrivate:   false,
 	},
 	schemas.Environment{
 		ID:          "1df49d30-e8eb-4e15-8a5d-e136bd31c78d",
 		Name:        "Joomla!",
 		Description: "Preconfigured stack for Joomla! with nginx, php-fpm and mysql preconfigured",
 		Count:       2,
+		IsPrivate:   false,
 	},
 	schemas.Environment{
 		ID:          "b48819c7-18b2-4772-a8fc-c0f2166ff92e",
 		Name:        "Ruby 1.9.3 with Rails 4.1.6, Sqlite3",
 		Description: "Base Ubuntu 14.04 LTS with Ruby, Rails and Sqlite3",
 		Count:       27,
+		IsPrivate:   false,
 	},
 }
 
@@ -877,7 +876,7 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	// start := time.Now()
+	start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -892,10 +891,8 @@ func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		})
 	}
 
-	// elapsed := time.Since(start).Nanoseconds() / 1000000
-	// go keenC.AddEvent("kenmare get environment time", map[string]interface{}{
-	// 	"duration": elapsed,
-	// })
+	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+	stathat.PostEZValue("kenmare get environment time", "steve@bowery.io", elapsed)
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
@@ -909,7 +906,7 @@ type updateEnvReq struct {
 }
 
 func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	// start := time.Now()
+	start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -980,14 +977,130 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// elapsed := time.Since(start).Nanoseconds() / 1000000
-	// go keenC.AddEvent("kenmare update environment time", map[string]interface{}{
-	// 	"duration": elapsed,
-	// })
+	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+	stathat.PostEZValue("kenmare update environment time", "steve@bowery.io", elapsed)
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
 		"environment": env,
+	})
+}
+
+type shareEnvReq struct {
+	Token string `json:"token"`
+	Email string `json:"email"`
+}
+
+// shareEnvironmentByIDHandler gives a developer the necessary permissions
+// to access an environment. The developer will be sent an email making
+// them aware of the shared image, and prompt them to create an account
+// if there is not one already.
+func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	start := time.Now()
+	vars := mux.Vars(req)
+	envID := vars["id"]
+
+	var body shareEnvReq
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&body)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// validate environment.
+	environment, err := getEnv(envID)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "no such environment exists",
+		})
+		return
+	}
+
+	// validate developer.
+	dev, err := getDev(body.Token)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "no such developer exists",
+		})
+		return
+	}
+
+	// ensure proper access.
+	if environment.DeveloperID != dev.ID.Hex() {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "invalid permissions",
+		})
+		return
+	}
+
+	// validate email.
+	_, err = mail.ParseAddress(body.Email)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "invalid email",
+		})
+		return
+	}
+
+	// update permissions.
+	environment.AccessList = util.AppendUniqueStr(environment.AccessList, body.Email)
+	_, err = db.Put("environments", environment.ID, environment)
+	if err != nil {
+		r.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// send email to user.
+	if env != "testing" {
+		go func(addr string) {
+			msg, _ := email.NewEmail(
+				fmt.Sprintf("[test] %s wants to share an environment with you", dev.Name),
+				email.Address{
+					Name:  "Bowery",
+					Email: "support@bowery.io",
+				},
+				[]email.Address{
+					email.Address{
+						Email: addr,
+					},
+				},
+				filepath.Join(staticDir, "share-environment.tmpl"),
+				map[string]string{
+					"FriendName": strings.Split(dev.Name, " ")[0],
+					"EnvName":    environment.Name,
+					"EnvDesc":    environment.Description,
+				},
+			)
+
+			emailClient.Send(msg)
+			return
+		}(body.Email)
+	}
+
+	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
+	stathat.PostEZValue("kenmare share environment time", "steve@bowery.io", elapsed)
+
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":      requests.STATUS_SUCCESS,
+		"environment": environment,
+	})
+}
+
+func revokeAcccessToEnvByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	// todo(steve).
+	r.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.STATUS_SUCCESS,
 	})
 }
 

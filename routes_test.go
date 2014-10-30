@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -804,6 +806,90 @@ func TestGetEnvironmentBadID(t *testing.T) {
 	if resp.Status != requests.STATUS_FAILED {
 		t.Error("Reponse succeeded but should have failed")
 	}
+}
+
+func TestShareEnvironmentSuccessful(t *testing.T) {
+	env, err := shareEnv(createdApp.EnvID, devs["apps"].Token, "j-money@bowery.io")
+	if err != nil {
+		t.Error("Response failed but should hav succeeded", err)
+	}
+
+	devWasAdded := false
+	for _, dev := range env.AccessList {
+		if dev == "j-money@bowery.io" {
+			devWasAdded = true
+			break
+		}
+	}
+
+	if !devWasAdded {
+		t.Error("developer was not added to access list")
+	}
+}
+
+func TestShareEnvironmentBadEnvID(t *testing.T) {
+	_, err := shareEnv("bad-env-id", devs["apps"].Token, "j-money@bowery.io")
+	if err != nil && err.Error() != "no such environment exists" {
+		t.Error("Response failed unexpectedly", err)
+	}
+}
+
+func TestShareEnvironmentBadToken(t *testing.T) {
+	_, err := shareEnv(createdApp.EnvID, "bad-token", "j-money@bowery.io")
+	if err != nil && err.Error() != "no such developer exists" {
+		t.Error("Response failed unexpectedly", err)
+	}
+}
+
+func TestShareEnvironmentBadEmail(t *testing.T) {
+	_, err := shareEnv(createdApp.EnvID, devs["apps"].Token, "bad-email")
+	if err != nil && err.Error() != "invalid email" {
+		t.Error("Response failed unexpectedly", err)
+	}
+}
+
+func shareEnv(envID, token, email string) (*schemas.Environment, error) {
+	server := startServer()
+	defer server.Close()
+	defer startBroome().Close()
+
+	shareReq := &shareEnvReq{
+		Token: token,
+		Email: email,
+	}
+
+	var body bytes.Buffer
+	encoder := json.NewEncoder(&body)
+	err := encoder.Encode(shareReq)
+	if err != nil {
+		return nil, err
+	}
+
+	addr := fmt.Sprintf("%s/environments/%s/share?token=%s", server.URL, envID, token)
+	req, err := http.NewRequest("PUT", addr, &body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	resp := new(environmentRes)
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Status != requests.STATUS_SUCCESS {
+		return nil, errors.New(resp.Err)
+	}
+
+	return resp.Environment, nil
 }
 
 // Start a server passing the request through mux for route processing.
