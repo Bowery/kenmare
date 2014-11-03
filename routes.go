@@ -799,11 +799,11 @@ var defaultEnvs = []schemas.Environment{
 		IsPrivate:   false,
 	},
 	schemas.Environment{
-		ID: "1095a390-1c99-4bd2-86d7-59633301fb4a",
-		Name: "PHP 5.5 with Composer",
+		ID:          "1095a390-1c99-4bd2-86d7-59633301fb4a",
+		Name:        "PHP 5.5 with Composer",
 		Description: "Base Ubuntu 14.04 LTS image with PHP 5.5 and composer. This supports Laravel by default.",
-		Count: 15,
-		IsPrivate: false,
+		Count:       15,
+		IsPrivate:   false,
 	},
 	schemas.Environment{
 		ID:          "172e5243-39f0-478a-904d-eb31cc2595a6",
