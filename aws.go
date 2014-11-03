@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Bowery/gopackages/config"
 	"github.com/mitchellh/goamz/aws"
 	"github.com/mitchellh/goamz/ec2"
 )
@@ -21,8 +22,6 @@ var (
 		"m3.large",
 	}
 	defaultSecurityGroup = "sg-70e0851a"
-	requiredPorts        = []int{32056, 32058}
-	suggestedPorts       = []int{22, 80, 443, 3000, 3306, 6379, 8080, 27017}
 )
 
 // AWSClient is a ec2 client.
@@ -174,11 +173,11 @@ func (c *AWSClient) createSecurityGroup(appID string, ports []int) (string, erro
 	id := res.Id
 	perms := []ec2.IPPerm{}
 
-	for _, r := range requiredPorts {
+	for _, r := range config.RequiredPorts {
 		ports = append(ports, r)
 	}
 
-	for _, s := range suggestedPorts {
+	for _, s := range config.SuggestedPorts {
 		ports = append(ports, s)
 	}
 
