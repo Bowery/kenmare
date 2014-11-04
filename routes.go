@@ -2,16 +2,16 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/mail"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -1255,14 +1255,24 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var body bytes.Buffer
-	_, err = io.Copy(&body, res.Body)
-	if err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write([]byte(err.Error()))
-		return
+	// Scan lines finding version and url.
+	curVersion := ""
+	curVerURL := ""
+	line := 0
+	scanner := bufio.NewScanner(res.Body)
+	for scanner.Scan() {
+		text := scanner.Text()
+		line++
+		if line <= 1 {
+			curVersion = text
+			continue
+		}
+
+		if strings.Contains(text, runtime.GOOS) && strings.Contains(text, runtime.GOARCH) {
+			curVerURL = text
+			break
+		}
 	}
-	curVersion := strings.TrimSpace(body.String())
 
 	// Check versions.
 	var curV *goversion.Version
@@ -1283,7 +1293,8 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	r.JSON(rw, http.StatusOK, &squirrelUpdateRes{
-		URL: fmt.Sprintf("%s/%s_%s_%s.zip", config.ClientS3Addr, curVersion, os, arch),
+		URL:  curVerURL,
+		Name: "Bowery " + curVersion,
 	})
 }
 
