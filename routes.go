@@ -833,6 +833,13 @@ var defaultEnvs = []schemas.Environment{
 		Count:       27,
 		IsPrivate:   false,
 	},
+	schemas.Environment{
+		ID:          "38398266-ff5e-4dc4-a89f-6d7197eff4a3",
+		Name:        "Orchestrate.js",
+		Description: "Node.js image with Node driver for Orchestrate.io installed",
+		Count:       4,
+		IsPrivate:   false,
+	},
 }
 
 // searchEnvironments
