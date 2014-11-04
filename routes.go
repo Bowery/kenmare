@@ -2,7 +2,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"net/http"
 	"net/mail"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,9 +23,9 @@ import (
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/Bowery/gopackages/slack"
+	"github.com/Bowery/gopackages/update"
 	"github.com/Bowery/gopackages/util"
 	"github.com/gorilla/mux"
-	goversion "github.com/hashicorp/go-version"
 	"github.com/stathat/go"
 	"github.com/unrolled/render"
 )
@@ -1247,54 +1245,21 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Download the current version.
-	res, err := http.Get(config.ClientS3Addr + "/VERSION")
-	if err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write([]byte(err.Error()))
-		return
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write([]byte("Couldn't retrieve latest version information"))
-		return
-	}
-
-	// Scan lines finding version and url.
-	curVersion := ""
-	curVerURL := ""
-	line := 0
-	scanner := bufio.NewScanner(res.Body)
-	for scanner.Scan() {
-		text := scanner.Text()
-		line++
-		if line <= 1 {
-			curVersion = text
-			continue
-		}
-
-		if strings.Contains(text, runtime.GOOS) && strings.Contains(text, runtime.GOARCH) {
-			curVerURL = text
-			break
-		}
-	}
-
-	// Check versions.
-	var curV *goversion.Version
-	clientV, err := goversion.NewVersion(clientVersion)
-	if err == nil {
-		curV, err = goversion.NewVersion(curVersion)
-	}
+	curVersion, curVerURL, err := update.GetLatest(config.ClientS3Addr + "/VERSION")
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write([]byte(err.Error()))
 		return
 	}
 
-	// If it's the same or greater, there's no updates to do.
-	if clientV.Equal(curV) || clientV.GreaterThan(curV) {
+	changed, err := update.OutOfDate(clientVersion, curVersion)
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+
+	if !changed {
 		rw.WriteHeader(http.StatusNoContent)
 		return
 	}
