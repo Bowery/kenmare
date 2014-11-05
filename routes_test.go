@@ -809,7 +809,7 @@ func TestGetEnvironmentBadID(t *testing.T) {
 }
 
 func TestShareEnvironmentSuccessful(t *testing.T) {
-	env, err := shareEnv(createdApp.EnvID, devs["apps"].Token, "j-money@bowery.io")
+	env, err := testShareEnv(createdApp.EnvID, devs["apps"].Token, "j-money@bowery.io")
 	if err != nil {
 		t.Error("Response failed but should hav succeeded", err)
 	}
@@ -828,27 +828,27 @@ func TestShareEnvironmentSuccessful(t *testing.T) {
 }
 
 func TestShareEnvironmentBadEnvID(t *testing.T) {
-	_, err := shareEnv("bad-env-id", devs["apps"].Token, "j-money@bowery.io")
+	_, err := testShareEnv("bad-env-id", devs["apps"].Token, "j-money@bowery.io")
 	if err != nil && err.Error() != "no such environment exists" {
 		t.Error("Response failed unexpectedly", err)
 	}
 }
 
 func TestShareEnvironmentBadToken(t *testing.T) {
-	_, err := shareEnv(createdApp.EnvID, "bad-token", "j-money@bowery.io")
+	_, err := testShareEnv(createdApp.EnvID, "bad-token", "j-money@bowery.io")
 	if err != nil && err.Error() != "no such developer exists" {
 		t.Error("Response failed unexpectedly", err)
 	}
 }
 
 func TestShareEnvironmentBadEmail(t *testing.T) {
-	_, err := shareEnv(createdApp.EnvID, devs["apps"].Token, "bad-email")
+	_, err := testShareEnv(createdApp.EnvID, devs["apps"].Token, "bad-email")
 	if err != nil && err.Error() != "invalid email" {
 		t.Error("Response failed unexpectedly", err)
 	}
 }
 
-func shareEnv(envID, token, email string) (*schemas.Environment, error) {
+func testShareEnv(envID, token, email string) (*schemas.Environment, error) {
 	server := startServer()
 	defer server.Close()
 	defer startBroome().Close()

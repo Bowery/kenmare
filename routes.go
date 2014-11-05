@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/mail"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -241,7 +242,9 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	msg := fmt.Sprintf("%s created a new application", dev.Name)
-	go slack.SendMessage("#activity", msg, "Drizzy Drake")
+	if env != "testing" {
+		go slack.SendMessage("#activity", msg, "Drizzy Drake")
+	}
 
 	// Create app. This also will create a new environment.
 	appID := uuid.New()
@@ -842,7 +845,7 @@ var defaultEnvs = []schemas.Environment{
 
 // searchEnvironments
 func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
-	query := req.URL.Query().Get("query")
+	query := req.FormValue("query")
 	if len(query) <= 0 {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
@@ -851,34 +854,52 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// If query is default, return default environments
+	// as well as any environments that the requesting
+	// developer has set as private, as well as any
+	// environments that have been shared with them.
 	if query == "default" {
+		token := req.FormValue("token")
+		results := defaultEnvs
+		if token != "" {
+			dev, err := getDev(token)
+			if err != nil {
+				r.JSON(rw, http.StatusBadRequest, map[string]interface{}{
+					"status": requests.STATUS_FAILED,
+					"error":  err.Error(),
+				})
+				return
+			}
+			query := fmt.Sprintf("(value.isPrivate:true AND developerID:%s) OR value.accessList:\"%s\"",
+				dev.ID.Hex(), dev.Email)
+			envs, err := searchEnvs(query)
+			if err != nil {
+				r.JSON(rw, http.StatusBadRequest, map[string]interface{}{
+					"status": requests.STATUS_FAILED,
+					"error":  err.Error(),
+				})
+				return
+			}
+
+			for _, e := range envs {
+				results = append(results, e)
+			}
+		}
 		r.JSON(rw, http.StatusOK, map[string]interface{}{
 			"status":       requests.STATUS_FOUND,
-			"environments": defaultEnvs,
+			"environments": results,
 		})
 		return
 	}
 
-	envsData, err := db.Search("environments", query, 100, 0)
+	// If the query is non-default, run a basic search.
+	envs, err := searchEnvs(query)
 	if err != nil {
-		rollbarC.Report(err, nil)
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		r.JSON(rw, http.StatusBadRequest, map[string]interface{}{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
-	}
-
-	envs := make([]schemas.Environment, len(envsData.Results))
-	for i, a := range envsData.Results {
-		if err := a.Value(&envs[i]); err != nil {
-			rollbarC.Report(err, nil)
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
-				"status": requests.STATUS_FAILED,
-				"error":  err.Error(),
-			})
-			return
-		}
 	}
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
@@ -935,7 +956,7 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get environment.
-	env, err := getEnv(id)
+	environment, err := getEnv(id)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
@@ -961,7 +982,7 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Only admins and creators can edit an environment.
-	if !dev.IsAdmin && dev.ID.Hex() != env.DeveloperID {
+	if !dev.IsAdmin && dev.ID.Hex() != environment.DeveloperID {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "developer does not have permission",
@@ -969,18 +990,27 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Only name, description, and privacy can be updated.
-	if env.Name != body.Name {
-		env.Name = body.Name
+	// Only name, description, privacy, and accessList can be updated.
+	if environment.Name != body.Name {
+		environment.Name = body.Name
 	}
-	if env.Description != body.Description {
-		env.Description = body.Description
+	if environment.Description != body.Description {
+		environment.Description = body.Description
 	}
-	if env.IsPrivate != body.IsPrivate {
-		env.IsPrivate = body.IsPrivate
+	if environment.IsPrivate != body.IsPrivate {
+		environment.IsPrivate = body.IsPrivate
+	}
+	if !reflect.DeepEqual(environment.AccessList, body.AccessList) {
+		for _, d := range body.AccessList {
+			if !util.StringInSlice(environment.AccessList, d) {
+				go shareEnv(&environment, dev, d)
+			}
+		}
+
+		environment.AccessList = body.AccessList
 	}
 
-	_, err = db.Put("environments", env.ID, env)
+	_, err = db.Put("environments", environment.ID, environment)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
@@ -997,7 +1027,7 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
-		"environment": env,
+		"environment": environment,
 	})
 }
 
@@ -1046,21 +1076,11 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// ensure proper access.
-	if environment.DeveloperID != dev.ID.Hex() {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  "invalid permissions",
-		})
-		return
-	}
-
-	// validate email.
-	_, err = mail.ParseAddress(body.Email)
+	err = shareEnv(&environment, dev, body.Email)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
-			"error":  "invalid email",
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -1069,38 +1089,11 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	environment.AccessList = util.AppendUniqueStr(environment.AccessList, body.Email)
 	_, err = db.Put("environments", environment.ID, environment)
 	if err != nil {
-		r.JSON(rw, http.StatusInternalServerError, map[string]string{
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
-	}
-
-	// send email to user.
-	if env != "testing" {
-		go func(addr string) {
-			msg, _ := email.NewEmail(
-				fmt.Sprintf("[test] %s wants to share an environment with you", dev.Name),
-				email.Address{
-					Name:  "Bowery",
-					Email: "support@bowery.io",
-				},
-				[]email.Address{
-					email.Address{
-						Email: addr,
-					},
-				},
-				filepath.Join(staticDir, "share-environment.tmpl"),
-				map[string]string{
-					"FriendName": strings.Split(dev.Name, " ")[0],
-					"EnvName":    environment.Name,
-					"EnvDesc":    environment.Description,
-				},
-			)
-
-			emailClient.Send(msg)
-			return
-		}(body.Email)
 	}
 
 	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
@@ -1357,6 +1350,22 @@ func getEnv(id string) (schemas.Environment, error) {
 	return env, nil
 }
 
+func searchEnvs(query string) ([]schemas.Environment, error) {
+	envsData, err := db.Search("environments", query, 100, 0)
+	if err != nil {
+		return []schemas.Environment{}, err
+	}
+
+	envs := make([]schemas.Environment, len(envsData.Results))
+	for i, a := range envsData.Results {
+		if err := a.Value(&envs[i]); err != nil {
+			return []schemas.Environment{}, err
+		}
+	}
+
+	return envs, nil
+}
+
 type developerRes struct {
 	Status    string             `json:"status"`
 	Err       string             `json:"error"`
@@ -1383,4 +1392,45 @@ func getDev(token string) (*schemas.Developer, error) {
 	}
 
 	return nil, errors.New(devRes.Err)
+}
+
+func shareEnv(environment *schemas.Environment, developer *schemas.Developer, emailAddr string) error {
+	// ensure proper access.
+	if environment.DeveloperID != developer.ID.Hex() {
+		return errors.New("invalid permissions")
+	}
+
+	_, err := mail.ParseAddress(emailAddr)
+	if err != nil {
+		return errors.New("invalid email")
+	}
+
+	// send email to user.
+	if env != "testing" {
+		go func() {
+			msg, _ := email.NewEmail(
+				fmt.Sprintf("[test] %s wants to share an environment with you", developer.Name),
+				email.Address{
+					Name:  "Bowery",
+					Email: "support@bowery.io",
+				},
+				[]email.Address{
+					email.Address{
+						Email: emailAddr,
+					},
+				},
+				filepath.Join(staticDir, "share-environment.tmpl"),
+				map[string]string{
+					"FriendName": strings.Split(developer.Name, " ")[0],
+					"EnvName":    environment.Name,
+					"EnvDesc":    environment.Description,
+				},
+			)
+
+			emailClient.Send(msg)
+			return
+		}()
+	}
+
+	return nil
 }
