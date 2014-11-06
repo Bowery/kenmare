@@ -192,6 +192,19 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Fetch the source environments dev.
+	sourceEnvDev, err := getDevPub(token, sourceEnv.DeveloperID)
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"body": body,
+		})
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
 	// Create AWS client.
 	var awsClient *AWSClient
 	if env != "testing" {
@@ -287,8 +300,20 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		AMI:         sourceEnv.AMI,
 		DeveloperID: dev.ID.Hex(),
 		CreatedAt:   time.Now(),
-		Count:       0,
+		IsPrivate:   sourceEnv.IsPrivate,
+		AccessList:  []string{sourceEnvDev.Email},
 	}
+
+	if sourceEnv.AccessList != nil {
+		for _, email := range sourceEnv.AccessList {
+			if email == dev.Email || email == sourceEnvDev.Email {
+				continue
+			}
+
+			newEnv.AccessList = append(newEnv.AccessList, email)
+		}
+	}
+
 	_, err = db.Put("environments", envID, &newEnv)
 	if err == nil {
 		for _, e := range sourceEnv.Events {
@@ -1374,6 +1399,28 @@ type developerRes struct {
 
 func getDev(token string) (*schemas.Developer, error) {
 	addr := fmt.Sprintf("%s/developers/me?token=%s", config.BroomeAddr, token)
+	res, err := http.Get(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	devRes := new(developerRes)
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(devRes)
+	if err != nil {
+		return nil, err
+	}
+
+	if devRes.Status == requests.STATUS_FOUND {
+		return devRes.Developer, nil
+	}
+
+	return nil, errors.New(devRes.Err)
+}
+
+func getDevPub(token, id string) (*schemas.Developer, error) {
+	addr := fmt.Sprintf("%s/developers/%s?token=%s", config.BroomeAddr, id, token)
 	res, err := http.Get(addr)
 	if err != nil {
 		return nil, err
