@@ -287,7 +287,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		AMI:         sourceEnv.AMI,
 		DeveloperID: dev.ID.Hex(),
 		CreatedAt:   time.Now(),
-		Count:       0,
+		IsPrivate:   sourceEnv.IsPrivate,
+		AccessList:  sourceEnv.AccessList,
 	}
 	_, err = db.Put("environments", envID, &newEnv)
 	if err == nil {
