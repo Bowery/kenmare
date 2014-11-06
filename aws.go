@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"code.google.com/p/go-uuid/uuid"
+
 	"github.com/Bowery/gopackages/config"
 	"github.com/mitchellh/goamz/aws"
 	"github.com/mitchellh/goamz/ec2"
@@ -145,6 +147,58 @@ func (c *AWSClient) RemoveInstance(instanceID string) error {
 	}
 
 	return nil
+}
+
+// SaveInstance takes a public ami snapshot of the ec2 instance
+// with the given id.
+func (c *AWSClient) SaveInstance(instanceID string) (string, error) {
+	createOpts := ec2.CreateImage{
+		InstanceId:  instanceID,
+		Name:        "Bowery AMI " + uuid.New(),
+		Description: "Bowery AMI " + uuid.New(),
+		NoReboot:    true,
+	}
+
+	// Create new image.
+	createRes, err := c.client.CreateImage(&createOpts)
+	if err != nil {
+		return "", err
+	}
+	imageID := createRes.ImageId
+
+	// Poll image for status "available."
+	isPending := true
+	for isPending {
+		<-time.After(5 * time.Second)
+		res, err := c.client.Images([]string{imageID}, nil)
+		if err != nil {
+			return "", err
+		}
+
+		if res.Images == nil {
+			return "", errors.New("no images found")
+		}
+
+		img := res.Images[0]
+		if img.State == "failed" {
+			return "", errors.New(img.StateReason)
+		}
+
+		if res.Images[0].State == "available" {
+			isPending = false
+		}
+	}
+
+	// Modify privacy.
+	updateOpts := ec2.ModifyImageAttribute{
+		AddGroups: []string{"all"},
+	}
+	_, err = c.client.ModifyImageAttribute(imageID, &updateOpts)
+	if err != nil {
+		return "", err
+	}
+
+	return imageID, nil
 }
 
 // ValidateKeys runs a simple
