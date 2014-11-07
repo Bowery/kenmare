@@ -357,7 +357,6 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		stathat.PostEZValue("kenmare provision instance time", "steve@bowery.io", elapsed)
 
 		// Update application.
-		currentApp.StatusMsg = "Doing health checks"
 		currentApp.InstanceID = instanceID
 		db.Put("applications", currentApp.ID, currentApp)
 
@@ -368,6 +367,9 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		// Get current app state since the developer may
 		// have made changes since.
 		currentApp, _ = getApp(app.ID)
+
+		currentApp.StatusMsg = "Doing health checks"
+		db.Put("applications", currentApp.ID, currentApp)
 
 		// Check error.
 		if err != nil {
