@@ -75,6 +75,7 @@ var Routes = []*Route{
 	&Route{"GET", "/applications/{id}", getApplicationByIDHandler},
 	&Route{"PUT", "/applications/{id}", updateApplicationByIDHandler},
 	&Route{"DELETE", "/applications/{id}", removeApplicationByIDHandler},
+	&Route{"PUT", "/applications/{id}/save", saveApplicationByIDHandler},
 	&Route{"GET", "/environments", searchEnvironmentsHandler},
 	&Route{"GET", "/environments/{id}", getEnvironmentByIDHandler},
 	&Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
@@ -816,6 +817,94 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+type saveAppReq struct {
+	Token        string `json:"token"`
+	AWSAccessKey string `json:"aws_access_key"`
+	AWSSecretKey string `json:"aws_secret_key"`
+}
+
+func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	var reqBody saveAppReq
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&reqBody)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	app, err := getApp(id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	if reqBody.Token == "" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "token required",
+		})
+		return
+	}
+
+	dev, err := getDev(reqBody.Token)
+	if app.DeveloperID != dev.ID.Hex() {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	if reqBody.AWSAccessKey == "" || reqBody.AWSSecretKey == "" {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  "Access Key and Secret Key required",
+		})
+		return
+	}
+
+	// Take snapshot in background and update the
+	// environment with the new AMI ID.
+	go func() {
+		awsClient, err := NewAWSClient(reqBody.AWSAccessKey, reqBody.AWSSecretKey)
+		if err != nil {
+			// handle error
+			log.Println(err)
+			return
+		}
+
+		imageID, err := awsClient.SaveInstance(app.InstanceID)
+		if err != nil {
+			// handle error
+			log.Println(err)
+			return
+		}
+
+		// Update environment.
+		env, err := getEnv(app.EnvID)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		env.AMI = imageID
+		db.Put("environments", env.ID, env)
+	}()
+
+	r.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.STATUS_SUCCESS,
+	})
+}
+
 var defaultEnvs = []schemas.Environment{
 	schemas.Environment{
 		ID:          "2f9e2fb0-e2aa-4055-ba76-d9af93d3a547",
@@ -967,7 +1056,9 @@ func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 type updateEnvReq struct {
 	*schemas.Environment
-	Token string `json:"token"`
+	Token        string `json:"token"`
+	AWSAccessKey string `json:"aws_access_key"`
+	AWSSecretKey string `json:"aws_secret_key"`
 }
 
 func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
