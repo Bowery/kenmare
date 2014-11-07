@@ -268,6 +268,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		EnvID:           envID,
 		DeveloperID:     dev.ID.Hex(),
 		Status:          "provisioning",
+		StatusMsg:       "Creating AWS instance",
 		Name:            body.Name,
 		Start:           body.Start,
 		Build:           body.Build,
@@ -356,6 +357,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		stathat.PostEZValue("kenmare provision instance time", "steve@bowery.io", elapsed)
 
 		// Update application.
+		currentApp.StatusMsg = "Doing health checks"
 		currentApp.InstanceID = instanceID
 		db.Put("applications", currentApp.ID, currentApp)
 
@@ -399,6 +401,9 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 				break
 			}
 		}
+
+		currentApp.StatusMsg = "Executing image commands"
+		db.Put("applications", currentApp.ID, currentApp)
 
 		// Run commands on the new instance.
 		cmds := []string{}
