@@ -19,6 +19,7 @@ var (
 	rollbarC    *rollbar.Client
 	keenC       keen.Client
 	emailClient *email.Client
+	awsC        *AWSClient
 	dir         string
 	staticDir   string
 	db          *gorc.Client
@@ -44,6 +45,7 @@ func main() {
 		orchestrateKey = config.OrchestrateProdKey
 	}
 	db = gorc.NewClient(orchestrateKey)
+	awsC, _ = NewAWSClient(config.S3AccessKey, config.S3SecretKey)
 
 	router := mux.NewRouter()
 	for _, r := range Routes {

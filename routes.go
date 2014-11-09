@@ -783,35 +783,40 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			// Remove the aws instance.
+			// Remove the aws instance. If unable to terminate the
+			// instance, try again with Bowery's keys as a fallback.
+			// If that doesn't work, alert user.
 			err = awsClient.RemoveInstance(app.InstanceID)
 			if err != nil {
-				rollbarC.Report(err, map[string]interface{}{
-					"dev": dev,
-					"app": app,
-				})
+				err = awsC.RemoveInstance(app.InstanceID)
+				if err != nil {
+					rollbarC.Report(err, map[string]interface{}{
+						"dev": dev,
+						"app": app,
+					})
 
-				// Notify user of error via email.
-				msg, _ := email.NewEmail(
-					"Unable to terminate instance",
-					email.Address{
-						Name:  "Bowery Support",
-						Email: "support@bowery.io",
-					},
-					[]email.Address{
+					// Notify user of error via email.
+					msg, _ := email.NewEmail(
+						"Unable to terminate instance",
 						email.Address{
-							Name:  dev.Name,
-							Email: dev.Email,
+							Name:  "Bowery Support",
+							Email: "support@bowery.io",
 						},
-					},
-					filepath.Join(staticDir, "error-removing-instance.tmpl"),
-					map[string]string{
-						"Name":       strings.Split(dev.Name, " ")[0],
-						"InstanceID": app.InstanceID,
-					},
-				)
-				go emailClient.Send(msg)
-				return
+						[]email.Address{
+							email.Address{
+								Name:  dev.Name,
+								Email: dev.Email,
+							},
+						},
+						filepath.Join(staticDir, "error-removing-instance.tmpl"),
+						map[string]string{
+							"Name":       strings.Split(dev.Name, " ")[0],
+							"InstanceID": app.InstanceID,
+						},
+					)
+					go emailClient.Send(msg)
+					return
+				}
 			}
 		}()
 	}
