@@ -145,8 +145,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	ports := body.Ports
 
 	// Validate request.
-	if token == "" || instanceType == "" ||
-		awsAccessKey == "" || awsSecretKey == "" {
+	if token == "" || instanceType == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "missing fields",
@@ -209,6 +208,13 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	// Create AWS client.
 	var awsClient *AWSClient
 	if env != "testing" {
+		// If the developer has failed to provide both keys
+		// default on Bowery's keys.
+		if awsAccessKey == "" || awsSecretKey == "" {
+			awsAccessKey = config.S3AccessKey
+			awsSecretKey = config.S3SecretKey
+		}
+
 		awsClient, err = NewAWSClient(awsAccessKey, awsSecretKey)
 		if err != nil {
 			rollbarC.Report(err, map[string]interface{}{
@@ -756,10 +762,13 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Attempt to delete the aws instance.
-	if env != "testing" && (awsAccessKey != "undefined" && awsAccessKey != "") &&
-		(awsSecretKey != "undefined" && awsSecretKey != "") {
+	if env != "testing" {
 		go func() {
 			// Create AWS client.
+			if awsAccessKey == "" || awsSecretKey == "" {
+				awsAccessKey = config.S3AccessKey
+				awsSecretKey = config.S3SecretKey
+			}
 			awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
 			if err != nil {
 				log.Println("can't create client")
@@ -838,6 +847,9 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	awsAccessKey := reqBody.AWSAccessKey
+	awsSecretKey := reqBody.AWSSecretKey
+
 	app, err := getApp(id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -875,7 +887,11 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// Take snapshot in background and update the
 	// environment with the new AMI ID.
 	go func() {
-		awsClient, err := NewAWSClient(reqBody.AWSAccessKey, reqBody.AWSSecretKey)
+		if awsAccessKey == "" || awsSecretKey == "" {
+			awsAccessKey = config.S3AccessKey
+			awsSecretKey = config.S3SecretKey
+		}
+		awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
 		if err != nil {
 			// handle error
 			log.Println(err)
