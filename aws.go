@@ -201,13 +201,25 @@ func (c *AWSClient) SaveInstance(instanceID string) (string, error) {
 	return imageID, nil
 }
 
-// ValidateKeys runs a simple
+// ValidateKeys runs a simple query to verify
+// the provided keys are valid.
 func (c *AWSClient) ValidateKeys() bool {
 	_, err := c.client.KeyPairs(nil, nil)
 	if err != nil {
 		return false
 	}
 	return true
+}
+
+// GetInstanceCount gets the total number of instances
+// operated by the client.
+func (c *AWSClient) GetInstanceCount() (int, error) {
+	res, err := c.client.Instances([]string{}, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(res.Reservations), nil
 }
 
 // createSecurityGroup creates a new security group with
