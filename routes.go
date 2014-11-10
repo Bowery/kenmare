@@ -26,64 +26,29 @@ import (
 	"github.com/Bowery/gopackages/slack"
 	"github.com/Bowery/gopackages/update"
 	"github.com/Bowery/gopackages/util"
+	"github.com/Bowery/gopackages/web"
 	"github.com/gorilla/mux"
 	"github.com/stathat/go"
 	"github.com/unrolled/render"
 )
 
-type Route struct {
-	Method  string
-	Path    string
-	Handler http.HandlerFunc
-}
-
-type SlashHandler struct {
-	Handler http.Handler
-}
-
-func (sh *SlashHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if req.URL.Path != "/" {
-		req.URL.Path = strings.TrimRight(req.URL.Path, "/")
-		req.RequestURI = req.URL.RequestURI()
-	}
-
-	sh.Handler.ServeHTTP(rw, req)
-}
-
-type CorsHandler struct {
-	Handler http.Handler
-}
-
-func (ch *CorsHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	rw.Header().Add("Access-Control-Allow-Origin", "*")
-	rw.Header().Add("Access-Control-Allow-Headers", req.Header.Get("Access-Control-Request-Headers"))
-	rw.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-
-	if req.Method == "OPTIONS" {
-		rw.WriteHeader(http.StatusOK)
-		return
-	}
-
-	ch.Handler.ServeHTTP(rw, req)
-}
-
-var Routes = []*Route{
-	&Route{"GET", "/", indexHandler},
-	&Route{"GET", "/healthz", healthzHandler},
-	&Route{"POST", "/applications", createApplicationHandler},
-	&Route{"GET", "/applications", getApplicationsHandler},
-	&Route{"GET", "/applications/{id}", getApplicationByIDHandler},
-	&Route{"PUT", "/applications/{id}", updateApplicationByIDHandler},
-	&Route{"DELETE", "/applications/{id}", removeApplicationByIDHandler},
-	&Route{"PUT", "/applications/{id}/save", saveApplicationByIDHandler},
-	&Route{"GET", "/environments", searchEnvironmentsHandler},
-	&Route{"GET", "/environments/{id}", getEnvironmentByIDHandler},
-	&Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
-	&Route{"PUT", "/environments/{id}/share", shareEnvironmentByIDHandler},
-	&Route{"DELETE", "/environments/{id}/share", revokeAcccessToEnvByIDHandler},
-	&Route{"POST", "/events", createEventHandler},
-	&Route{"GET", "/auth/validate-keys", validateKeysHandler},
-	&Route{"GET", "/client/check", clientCheckHandler},
+var Routes = []web.Route{
+	web.Route{"GET", "/", indexHandler},
+	web.Route{"GET", "/healthz", healthzHandler},
+	web.Route{"POST", "/applications", createApplicationHandler},
+	web.Route{"GET", "/applications", getApplicationsHandler},
+	web.Route{"GET", "/applications/{id}", getApplicationByIDHandler},
+	web.Route{"PUT", "/applications/{id}", updateApplicationByIDHandler},
+	web.Route{"DELETE", "/applications/{id}", removeApplicationByIDHandler},
+	web.Route{"PUT", "/applications/{id}/save", saveApplicationByIDHandler},
+	web.Route{"GET", "/environments", searchEnvironmentsHandler},
+	web.Route{"GET", "/environments/{id}", getEnvironmentByIDHandler},
+	web.Route{"PUT", "/environments/{id}", updateEnvironmentByIDHandler},
+	web.Route{"PUT", "/environments/{id}/share", shareEnvironmentByIDHandler},
+	web.Route{"DELETE", "/environments/{id}/share", revokeAcccessToEnvByIDHandler},
+	web.Route{"POST", "/events", createEventHandler},
+	web.Route{"GET", "/auth/validate-keys", validateKeysHandler},
+	web.Route{"GET", "/client/check", clientCheckHandler},
 }
 
 var r = render.New(render.Options{

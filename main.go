@@ -10,8 +10,7 @@ import (
 	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/keen"
 	"github.com/Bowery/gopackages/rollbar"
-	"github.com/codegangsta/negroni"
-	"github.com/gorilla/mux"
+	"github.com/Bowery/gopackages/web"
 	"github.com/orchestrate-io/gorc"
 )
 
@@ -45,14 +44,9 @@ func main() {
 	}
 	db = gorc.NewClient(orchestrateKey)
 
-	router := mux.NewRouter()
-	for _, r := range Routes {
-		route := router.NewRoute()
-		route.Path(r.Path).Methods(r.Method)
-		route.HandlerFunc(r.Handler)
-	}
-
-	app := negroni.Classic()
-	app.UseHandler(&SlashHandler{&CorsHandler{router}})
-	app.Run(port)
+	app := web.NewServer(port, []web.Handler{
+		&web.SlashHandler{},
+		&web.CorsHandler{},
+	}, Routes)
+	app.Run()
 }
