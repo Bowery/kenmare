@@ -49,6 +49,7 @@ var Routes = []web.Route{
 	web.Route{"POST", "/events", createEventHandler},
 	web.Route{"GET", "/auth/validate-keys", validateKeysHandler},
 	web.Route{"GET", "/client/check", clientCheckHandler},
+	web.Route{"GET", "/_/stats/instance-count", getInstanceCountHandler},
 }
 
 var r = render.New(render.Options{
@@ -1372,6 +1373,25 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 	r.JSON(rw, http.StatusOK, &squirrelUpdateRes{
 		URL:  curVerURL,
 		Name: "Bowery " + curVersion,
+	})
+}
+
+func getInstanceCountHandler(rw http.ResponseWriter, req *http.Request) {
+	count, err := awsC.GetInstanceCount()
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	r.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status": requests.STATUS_SUCCESS,
+		"item": map[string]interface{}{
+			"value": count,
+			"text":  "Instance Count",
+		},
 	})
 }
 
