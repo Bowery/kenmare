@@ -1387,10 +1387,11 @@ func getInstanceCountHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
-		"status": requests.STATUS_SUCCESS,
-		"item": map[string]interface{}{
-			"value": count,
-			"text":  "Instance Count",
+		"item": []interface{}{
+			map[string]interface{}{
+				"value": count,
+				"text":  "Instance Count",
+			},
 		},
 	})
 }
