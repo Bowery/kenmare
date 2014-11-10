@@ -54,7 +54,7 @@ func NewAWSClient(accessKey, secretKey string) (*AWSClient, error) {
 // ami and instanceType. It returns the public address and the instance id
 // on success. An error is returned if it can't be created or the state can't
 // be retrieved.
-func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int) (string, error) {
+func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int, useKeys bool) (string, error) {
 	// An ami id and instance type are required.
 	if ami == "" || instanceType == "" {
 		return "", errors.New("ami id and instance type required.")
@@ -96,7 +96,7 @@ func (c *AWSClient) CreateInstance(ami, instanceType, appID string, ports []int)
 		},
 	}
 
-	if len(keys.Keys) > 0 {
+	if useKeys && len(keys.Keys) > 0 {
 		opts.KeyName = keys.Keys[0].Name
 	}
 

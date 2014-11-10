@@ -170,12 +170,15 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	hostedByBowery := false
+
 	// Create AWS client.
 	var awsClient *AWSClient
 	if env != "testing" {
 		// If the developer has failed to provide both keys
 		// default on Bowery's keys.
 		if awsAccessKey == "" || awsSecretKey == "" {
+			hostedByBowery = true
 			awsAccessKey = config.S3AccessKey
 			awsSecretKey = config.S3SecretKey
 		}
@@ -311,7 +314,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		// Create instance.
 		log.Println("creating instance")
-		instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList)
+		instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList, !hostedByBowery)
 		if err != nil {
 			currentApp.Status = "error"
 			appError := &schemas.Error{
