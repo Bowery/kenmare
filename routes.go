@@ -402,6 +402,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		// Update app status.
 		currentApp.Status = "running"
+		currentApp.StatusMsg = ""
 		db.Put("applications", currentApp.ID, currentApp)
 
 		// Increment count
