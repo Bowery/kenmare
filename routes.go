@@ -512,14 +512,6 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
-	if id == "c2c1b0dd-b9ff-48d6-86e6-beef1a069293" || id == "88334b51-58e7-4fa5-aab3-e817d10de44a" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
-			"error":  "invalid app",
-		})
-		return
-	}
-
 	app, err := getApp(id)
 	if err != nil {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
