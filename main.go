@@ -46,9 +46,10 @@ func main() {
 	db = gorc.NewClient(orchestrateKey)
 	awsC, _ = NewAWSClient(config.S3AccessKey, config.S3SecretKey)
 
-	app := web.NewServer(port, []web.Handler{
-		&web.SlashHandler{},
-		&web.CorsHandler{},
+	server := web.NewServer(port, []web.Handler{
+		new(web.SlashHandler),
+		new(web.CorsHandler),
 	}, Routes)
-	app.Run()
+	server.Router.NotFoundHandler = &web.NotFoundHandler{r}
+	server.ListenAndServe()
 }
