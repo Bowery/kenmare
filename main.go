@@ -49,6 +49,7 @@ func main() {
 	server := web.NewServer(port, []web.Handler{
 		new(web.SlashHandler),
 		new(web.CorsHandler),
+		&web.StatHandler{Key: config.StatHatKey, Name: "kenmare"},
 	}, Routes)
 	server.Router.NotFoundHandler = &web.NotFoundHandler{r}
 	server.ListenAndServe()

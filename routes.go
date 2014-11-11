@@ -90,7 +90,6 @@ func (res *Res) Error() string {
 
 // createEnvironmentHandler creates a new environment
 func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	var body applicationReq
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
@@ -330,7 +329,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-		stathat.PostEZValue("kenmare provision instance time", "steve@bowery.io", elapsed)
+		stathat.PostEZValue("kenmare provision instance time", config.StatHatKey, elapsed)
 
 		// Update application.
 		currentApp.InstanceID = instanceID
@@ -410,9 +409,6 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		db.Put("environments", sourceEnv.ID, sourceEnv)
 	}()
 
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	stathat.PostEZValue("kenmare create application time", "steve@bowery.io", elapsed)
-
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
 		"application": app,
@@ -420,7 +416,6 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	token := req.FormValue("token")
 	if token == "" {
 		r.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -498,9 +493,6 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 
 	wg.Wait()
 
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	stathat.PostEZValue("kenmare get applications time", "steve@bowery.io", elapsed)
-
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.STATUS_FOUND,
 		"applications": validApps,
@@ -508,7 +500,6 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -521,9 +512,6 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	stathat.PostEZValue("kenmare get application time", "steve@bowery.io", elapsed)
-
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"application": app,
@@ -531,7 +519,6 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	body := new(applicationReq)
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
@@ -649,9 +636,6 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	stathat.PostEZValue("kenmare update application time", "steve@bowery.io", elapsed)
-
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
 		"application": application,
@@ -659,7 +643,6 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -782,9 +765,6 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			}
 		}()
 	}
-
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	stathat.PostEZValue("kenmare remove application time", "steve@bowery.io", elapsed)
 
 	// Remove the app from the db.
 	db.Delete("applications", id) // yolo(steve): wild'n'out.
@@ -1013,7 +993,6 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -1027,9 +1006,6 @@ func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"error":  err.Error(),
 		})
 	}
-
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	stathat.PostEZValue("kenmare get environment time", "steve@bowery.io", elapsed)
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
@@ -1045,7 +1021,6 @@ type updateEnvReq struct {
 }
 
 func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -1128,9 +1103,6 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	stathat.PostEZValue("kenmare update environment time", "steve@bowery.io", elapsed)
-
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
 		"environment": environment,
@@ -1147,7 +1119,6 @@ type shareEnvReq struct {
 // them aware of the shared image, and prompt them to create an account
 // if there is not one already.
 func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	start := time.Now()
 	vars := mux.Vars(req)
 	envID := vars["id"]
 
@@ -1201,9 +1172,6 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		})
 		return
 	}
-
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	stathat.PostEZValue("kenmare share environment time", "steve@bowery.io", elapsed)
 
 	r.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
