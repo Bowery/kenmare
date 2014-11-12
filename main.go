@@ -52,5 +52,6 @@ func main() {
 		&web.StatHandler{Key: config.StatHatKey, Name: "kenmare"},
 	}, Routes)
 	server.Router.NotFoundHandler = &web.NotFoundHandler{r}
+	server.AuthHandler = &web.AuthHandler{Auth: AuthHandler}
 	server.ListenAndServe()
 }

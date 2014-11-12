@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
-
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/requests"
@@ -50,12 +50,39 @@ var Routes = []web.Route{
 	{"GET", "/auth/validate-keys", validateKeysHandler, false},
 	{"GET", "/client/check", clientCheckHandler, false},
 	{"GET", "/_/stats/instance-count", getInstanceCountHandler, false},
+	{"GET", "/admin", adminHomeHandler, true},
+	{"GET", "/admin/environments", adminSearchHandler, true},
+	{"GET", "/admin/environments/{id}", adminGetEnvironmentHandler, true},
+	{"POST", "/admin/environments/{id}", adminUpdateEnvironmentHandler, true},
 }
 
 var r = render.New(render.Options{
 	IndentJSON:    true,
 	IsDevelopment: true,
 })
+
+func AuthHandler(req *http.Request, user, pass string) (bool, error) {
+	var body bytes.Buffer
+	bodyReq := &requests.LoginReq{Email: user, Password: pass}
+
+	encoder := json.NewEncoder(&body)
+	err := encoder.Encode(bodyReq)
+	if err != nil {
+		return false, err
+	}
+
+	res, err := http.Post(fmt.Sprintf("%s/developers/check-admin", config.BroomeAddr), "application/json", &body)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusOK {
+		return true, nil
+	}
+
+	return false, errors.New("not admin")
+}
 
 func indexHandler(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(rw, "Bowery Environment Manager")
@@ -1354,6 +1381,69 @@ func getInstanceCountHandler(rw http.ResponseWriter, req *http.Request) {
 				"text":  "Instance Count",
 			},
 		},
+	})
+}
+
+// adminHomeHandler
+func adminHomeHandler(rw http.ResponseWriter, req *http.Request) {
+	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "index.tmpl"), map[string]interface{}{})
+}
+
+// adminSearchHandler
+func adminSearchHandler(rw http.ResponseWriter, req *http.Request) {
+	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "search.tmpl"), map[string]interface{}{})
+}
+
+// adminEnvironmentHandler
+func adminGetEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	env, err := getEnv(id)
+	if err != nil {
+		web.RenderHTML(rw, filepath.Join(staticDir, "admin", "error.tmpl"), map[string]interface{}{})
+		return
+	}
+
+	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "environment.tmpl"), map[string]interface{}{
+		"Environment": env,
+	})
+}
+
+// adminUpdateEnvironmentHandler
+func adminUpdateEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	var body updateEnvReq
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&body)
+	if err != nil {
+		rollbarC.Report(err, nil)
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	env, err := getEnv(id)
+	if err != nil {
+		r.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.STATUS_FAILED,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	env.Name = body.Name
+	env.Description = body.Description
+	env.DeveloperID = body.DeveloperID
+	env.AMI = body.AMI
+
+	_, err = db.Put("environments", env.ID, env)
+	r.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.STATUS_SUCCESS,
 	})
 }
 
