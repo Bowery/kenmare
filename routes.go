@@ -102,6 +102,7 @@ type applicationReq struct {
 	Name         string `json:"name"`
 	Start        string `json:"start"`
 	Build        string `json:"build"`
+	Init         string `json:"init"`
 	LocalPath    string `json:"localPath"`
 	RemotePath   string `json:"remotePath"`
 }
@@ -274,6 +275,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		Name:            body.Name,
 		Start:           body.Start,
 		Build:           body.Build,
+		Init:            body.Init,
 		LocalPath:       body.LocalPath,
 		RemotePath:      body.RemotePath,
 		CreatedAt:       time.Now(),
@@ -629,6 +631,9 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 	if body.Build != "" {
 		app.Build = body.Build
+	}
+	if body.Init != "" {
+		app.Init = body.Init
 	}
 	if body.RemotePath != "" {
 		app.RemotePath = body.RemotePath
