@@ -916,7 +916,7 @@ func startBroome() *httptest.Server {
 func broomeHandler(rw http.ResponseWriter, req *http.Request) {
 	token := req.FormValue("token")
 	if token == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "token required",
 		})
@@ -925,14 +925,14 @@ func broomeHandler(rw http.ResponseWriter, req *http.Request) {
 
 	dev, ok := devs[token]
 	if ok {
-		r.JSON(rw, http.StatusOK, map[string]interface{}{
+		renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 			"status":    requests.STATUS_FOUND,
 			"developer": dev,
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusBadRequest, map[string]string{
+	renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 		"status": requests.STATUS_FAILED,
 		"error":  "invalid token",
 	})

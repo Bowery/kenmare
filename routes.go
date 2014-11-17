@@ -56,7 +56,7 @@ var Routes = []web.Route{
 	{"POST", "/admin/environments/{id}", adminUpdateEnvironmentHandler, true},
 }
 
-var r = render.New(render.Options{
+var renderer = render.New(render.Options{
 	IndentJSON:    true,
 	IsDevelopment: true,
 })
@@ -123,7 +123,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	err := decoder.Decode(&body)
 	if err != nil {
 		rollbarC.Report(err, nil)
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -139,7 +139,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Validate request.
 	if token == "" || instanceType == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "missing fields",
 		})
@@ -151,7 +151,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -165,7 +165,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	// Fetch environment.
 	sourceEnv, err := getEnv(envID)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -178,7 +178,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -191,7 +191,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -217,7 +217,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 				"body": body,
 				"dev":  dev,
 			})
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
+			renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  err.Error(),
 			})
@@ -226,7 +226,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		valid := awsClient.ValidateKeys()
 		if !valid {
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
+			renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  "invalid keys",
 			})
@@ -246,7 +246,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 					"body": body,
 					"dev":  dev,
 				})
-				r.JSON(rw, http.StatusBadRequest, map[string]string{
+				renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 					"status": requests.STATUS_FAILED,
 					"error":  fmt.Sprintf("invalid port %s", port),
 				})
@@ -290,7 +290,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			"dev":  dev,
 			"app":  app,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -438,7 +438,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		db.Put("environments", sourceEnv.ID, sourceEnv)
 	}()
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
 		"application": app,
 	})
@@ -447,7 +447,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 	token := req.FormValue("token")
 	if token == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "token required",
 		})
@@ -459,7 +459,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"token": token,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -472,7 +472,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"dev": dev,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -485,7 +485,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 			rollbarC.Report(err, map[string]interface{}{
 				"dev": dev,
 			})
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
+			renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  err.Error(),
 			})
@@ -522,7 +522,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 
 	wg.Wait()
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.STATUS_FOUND,
 		"applications": validApps,
 	})
@@ -534,14 +534,14 @@ func getApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	app, err := getApp(id)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"application": app,
 	})
@@ -552,7 +552,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -565,7 +565,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Validate request.
 	if token == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "missing fields",
 		})
@@ -579,7 +579,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"body": body,
 			"id":   id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -593,7 +593,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"body": body,
 			"id":   id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -606,7 +606,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"body": body,
 			"id":   id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -615,7 +615,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Check if the developer is allowed to modify the app.
 	if dev.ID.Hex() != app.DeveloperID && !dev.IsAdmin {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  fmt.Sprintf("unauthorized to modify app with id %s", id),
 		})
@@ -648,7 +648,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"app": app,
 			"id":  id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -661,14 +661,14 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"app": app,
 			"id":  id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
 		"application": application,
 	})
@@ -683,7 +683,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	awsSecretKey := req.FormValue("aws_secret_key")
 
 	if token == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "token required",
 		})
@@ -697,7 +697,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"id":    id,
 			"token": token,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -710,7 +710,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"dev": dev,
 			"id":  id,
 		})
-		r.JSON(rw, http.StatusOK, map[string]string{
+		renderer.JSON(rw, http.StatusOK, map[string]string{
 			"status": requests.STATUS_SUCCESS,
 		})
 		return
@@ -722,7 +722,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			"dev": dev,
 			"id":  id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -731,7 +731,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Check if the developer is allowed to remove the app.
 	if dev.ID.Hex() != app.DeveloperID && !dev.IsAdmin {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  fmt.Sprintf("unauthorized to remove app with id %s", id),
 		})
@@ -800,7 +800,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Remove the app from the db.
 	db.Delete("applications", id) // yolo(steve): wild'n'out.
-	r.JSON(rw, http.StatusOK, map[string]string{
+	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.STATUS_SUCCESS,
 	})
 }
@@ -819,7 +819,7 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&reqBody)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -831,7 +831,7 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	app, err := getApp(id)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -839,7 +839,7 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if reqBody.Token == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "token required",
 		})
@@ -848,7 +848,7 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	dev, err := getDev(reqBody.Token)
 	if app.DeveloperID != dev.ID.Hex() {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -856,7 +856,7 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if reqBody.AWSAccessKey == "" || reqBody.AWSSecretKey == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "Access Key and Secret Key required",
 		})
@@ -895,7 +895,7 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		db.Put("environments", env.ID, env)
 	}()
 
-	r.JSON(rw, http.StatusOK, map[string]string{
+	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.STATUS_SUCCESS,
 	})
 }
@@ -963,7 +963,7 @@ var defaultEnvs = []schemas.Environment{
 func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 	query := req.FormValue("query")
 	if len(query) <= 0 {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "a valid query is required",
 		})
@@ -980,7 +980,7 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 		if token != "" {
 			dev, err := getDev(token)
 			if err != nil {
-				r.JSON(rw, http.StatusBadRequest, map[string]interface{}{
+				renderer.JSON(rw, http.StatusBadRequest, map[string]interface{}{
 					"status": requests.STATUS_FAILED,
 					"error":  err.Error(),
 				})
@@ -990,7 +990,7 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 				dev.ID.Hex(), dev.Email)
 			envs, err := searchEnvs(query)
 			if err != nil {
-				r.JSON(rw, http.StatusBadRequest, map[string]interface{}{
+				renderer.JSON(rw, http.StatusBadRequest, map[string]interface{}{
 					"status": requests.STATUS_FAILED,
 					"error":  err.Error(),
 				})
@@ -1001,7 +1001,7 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 				results = append(results, e)
 			}
 		}
-		r.JSON(rw, http.StatusOK, map[string]interface{}{
+		renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 			"status":       requests.STATUS_FOUND,
 			"environments": results,
 		})
@@ -1011,14 +1011,14 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 	// If the query is non-default, run a basic search.
 	envs, err := searchEnvs(query)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]interface{}{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]interface{}{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.STATUS_FOUND,
 		"environments": envs,
 	})
@@ -1033,13 +1033,13 @@ func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_FOUND,
 		"environment": env,
 	})
@@ -1061,7 +1061,7 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	err := decoder.Decode(&body)
 	if err != nil {
 		rollbarC.Report(err, nil)
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1074,7 +1074,7 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1087,7 +1087,7 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1096,7 +1096,7 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Only admins and creators can edit an environment.
 	if !dev.IsAdmin && dev.ID.Hex() != environment.DeveloperID {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "developer does not have permission",
 		})
@@ -1128,14 +1128,14 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
 		"environment": environment,
 	})
@@ -1158,7 +1158,7 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1168,7 +1168,7 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// validate environment.
 	environment, err := getEnv(envID)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "no such environment exists",
 		})
@@ -1178,7 +1178,7 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// validate developer.
 	dev, err := getDev(body.Token)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "no such developer exists",
 		})
@@ -1187,7 +1187,7 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	err = shareEnv(&environment, dev, body.Email)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1198,14 +1198,14 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	environment.AccessList = util.AppendUniqueStr(environment.AccessList, body.Email)
 	_, err = db.Put("environments", environment.ID, environment)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":      requests.STATUS_SUCCESS,
 		"environment": environment,
 	})
@@ -1213,7 +1213,7 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 func revokeAcccessToEnvByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// todo(steve).
-	r.JSON(rw, http.StatusOK, map[string]string{
+	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.STATUS_SUCCESS,
 	})
 }
@@ -1230,7 +1230,7 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	err := decoder.Decode(&body)
 	if err != nil {
 		rollbarC.Report(err, nil)
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1242,7 +1242,7 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 	envID := body.EnvID
 
 	if typ == "" || bdy == "" || envID == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "missing fields",
 		})
@@ -1254,7 +1254,7 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1275,14 +1275,14 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 			"envID": envID,
 			"event": event,
 		})
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status": requests.STATUS_SUCCESS,
 		"event":  event,
 	})
@@ -1293,7 +1293,7 @@ func validateKeysHandler(rw http.ResponseWriter, req *http.Request) {
 	awsSecretKey := req.URL.Query().Get("aws_secret_key")
 
 	if awsAccessKey == "" || awsSecretKey == "" {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "Access Key and Secret Key required",
 		})
@@ -1305,7 +1305,7 @@ func validateKeysHandler(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" {
 		awsClient, err = NewAWSClient(awsAccessKey, awsSecretKey)
 		if err != nil {
-			r.JSON(rw, http.StatusBadRequest, map[string]string{
+			renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
 				"error":  err.Error(),
 			})
@@ -1315,14 +1315,14 @@ func validateKeysHandler(rw http.ResponseWriter, req *http.Request) {
 
 	valid := awsClient.ValidateKeys()
 	if !valid {
-		r.JSON(rw, http.StatusOK, map[string]string{
+		renderer.JSON(rw, http.StatusOK, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  "invalid keys",
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]string{
+	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.STATUS_SUCCESS,
 	})
 }
@@ -1363,7 +1363,7 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, &squirrelUpdateRes{
+	renderer.JSON(rw, http.StatusOK, &squirrelUpdateRes{
 		URL:  curVerURL,
 		Name: "Bowery " + curVersion,
 	})
@@ -1372,14 +1372,14 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 func getInstanceCountHandler(rw http.ResponseWriter, req *http.Request) {
 	count, err := awsC.GetInstanceCount()
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	r.JSON(rw, http.StatusOK, map[string]interface{}{
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"item": []interface{}{
 			map[string]interface{}{
 				"value": count,
@@ -1425,7 +1425,7 @@ func adminUpdateEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 	err := decoder.Decode(&body)
 	if err != nil {
 		rollbarC.Report(err, nil)
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1434,7 +1434,7 @@ func adminUpdateEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 
 	env, err := getEnv(id)
 	if err != nil {
-		r.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.STATUS_FAILED,
 			"error":  err.Error(),
 		})
@@ -1447,7 +1447,7 @@ func adminUpdateEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 	env.AMI = body.AMI
 
 	_, err = db.Put("environments", env.ID, env)
-	r.JSON(rw, http.StatusOK, map[string]string{
+	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.STATUS_SUCCESS,
 	})
 }
