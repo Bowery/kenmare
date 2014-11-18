@@ -18,6 +18,7 @@ type commandsReq struct {
 	Cmds  []string `json:"cmds"`
 }
 
+// DelanceyExec sends commands to a Delancey agent to be executed.
 func DelanceyExec(app schemas.Application, cmds []string) error {
 	req := &commandsReq{
 		AppID: app.ID,
@@ -38,7 +39,7 @@ func DelanceyExec(app schemas.Application, cmds []string) error {
 	}
 	defer res.Body.Close()
 
-	execRes := new(Res)
+	execRes := new(requests.Res)
 	decoder := json.NewDecoder(res.Body)
 	err = decoder.Decode(execRes)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/keen"
@@ -18,7 +19,7 @@ var (
 	rollbarC    *rollbar.Client
 	keenC       keen.Client
 	emailClient *email.Client
-	awsC        *AWSClient
+	awsC        *aws.Client
 	dir         string
 	staticDir   string
 	db          *gorc.Client
@@ -44,13 +45,13 @@ func main() {
 		orchestrateKey = config.OrchestrateProdKey
 	}
 	db = gorc.NewClient(orchestrateKey)
-	awsC, _ = NewAWSClient(config.S3AccessKey, config.S3SecretKey)
+	awsC, _ = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 
 	server := web.NewServer(port, []web.Handler{
 		new(web.SlashHandler),
 		new(web.CorsHandler),
 		&web.StatHandler{Key: config.StatHatKey, Name: "kenmare"},
-	}, Routes)
-	server.AuthHandler = &web.AuthHandler{Auth: AuthHandler}
+	}, routes)
+	server.AuthHandler = &web.AuthHandler{Auth: authHandler}
 	server.ListenAndServe()
 }
