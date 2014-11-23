@@ -78,7 +78,7 @@ func createApplicationMock(addr string) (*createApplicationRes, error) {
 	appReq := &applicationReq{
 		EnvID:        "2336c5ae-f03a-405f-b48c-d46540ab8702",
 		Token:        devs["apps"].Token,
-		InstanceType: validInstanceTypes[0],
+		InstanceType: "m3.medium",
 		AWSAccessKey: "access",
 		AWSSecretKey: "secret",
 		Ports:        "22,80,4000",
@@ -171,7 +171,7 @@ func TestCreateApplicationBadToken(t *testing.T) {
 	appReq := &applicationReq{
 		EnvID:        "2336c5ae-f03a-405f-b48c-d46540ab8702",
 		Token:        "badtoken",
-		InstanceType: validInstanceTypes[0],
+		InstanceType: "m3.medium",
 		AWSAccessKey: "access",
 		AWSSecretKey: "secret",
 		Ports:        "22,80,4000",
@@ -895,7 +895,7 @@ func testShareEnv(envID, token, email string) (*schemas.Environment, error) {
 // Start a server passing the request through mux for route processing.
 func startServer() *httptest.Server {
 	router := mux.NewRouter()
-	for _, r := range Routes {
+	for _, r := range routes {
 		route := router.NewRoute()
 		route.Path(r.Path).Methods(r.Method)
 		route.HandlerFunc(r.Handler)

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
+	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/requests"
@@ -32,7 +33,7 @@ import (
 	"github.com/unrolled/render"
 )
 
-var Routes = []web.Route{
+var routes = []web.Route{
 	{"GET", "/", indexHandler, false},
 	{"GET", "/healthz", healthzHandler, false},
 	{"POST", "/applications", createApplicationHandler, false},
@@ -61,7 +62,7 @@ var renderer = render.New(render.Options{
 	IsDevelopment: true,
 })
 
-func AuthHandler(req *http.Request, user, pass string) (bool, error) {
+func authHandler(req *http.Request, user, pass string) (bool, error) {
 	var body bytes.Buffer
 	bodyReq := &requests.LoginReq{Email: user, Password: pass}
 
@@ -107,15 +108,6 @@ type applicationReq struct {
 	RemotePath   string `json:"remotePath"`
 }
 
-type Res struct {
-	Status string `json:"status"`
-	Err    string `json:"error"`
-}
-
-func (res *Res) Error() string {
-	return res.Err
-}
-
 // createEnvironmentHandler creates a new environment
 func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	var body applicationReq
@@ -146,7 +138,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = validateConfig(instanceType)
+	err = aws.ValidateConfig(instanceType)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
@@ -201,7 +193,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	hostedByBowery := false
 
 	// Create AWS client.
-	var awsClient *AWSClient
+	var awsClient *aws.Client
 	if env != "testing" {
 		// If the developer has failed to provide both keys
 		// default on Bowery's keys.
@@ -211,7 +203,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			awsSecretKey = config.S3SecretKey
 		}
 
-		awsClient, err = NewAWSClient(awsAccessKey, awsSecretKey)
+		awsClient, err = aws.NewClient(awsAccessKey, awsSecretKey)
 		if err != nil {
 			rollbarC.Report(err, map[string]interface{}{
 				"body": body,
@@ -505,7 +497,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(len(validApps))
 
-	for i, _ := range validApps {
+	for i := range validApps {
 		go func(wg *sync.WaitGroup, i int) {
 			a := validApps[i]
 			errors, err := getAppErrors(a.ID)
@@ -746,7 +738,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 				awsAccessKey = config.S3AccessKey
 				awsSecretKey = config.S3SecretKey
 			}
-			awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
+			awsClient, err := aws.NewClient(awsAccessKey, awsSecretKey)
 			if err != nil {
 				log.Println("can't create client")
 				rollbarC.Report(err, map[string]interface{}{
@@ -870,7 +862,7 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			awsAccessKey = config.S3AccessKey
 			awsSecretKey = config.S3SecretKey
 		}
-		awsClient, err := NewAWSClient(awsAccessKey, awsSecretKey)
+		awsClient, err := aws.NewClient(awsAccessKey, awsSecretKey)
 		if err != nil {
 			// handle error
 			log.Println(err)
@@ -1300,10 +1292,10 @@ func validateKeysHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var awsClient *AWSClient
+	var awsClient *aws.Client
 	var err error
 	if env != "testing" {
-		awsClient, err = NewAWSClient(awsAccessKey, awsSecretKey)
+		awsClient, err = aws.NewClient(awsAccessKey, awsSecretKey)
 		if err != nil {
 			renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 				"status": requests.STATUS_FAILED,
@@ -1487,7 +1479,7 @@ func getAppErrors(id string) ([]schemas.Error, error) {
 		return []schemas.Error{}, err
 	}
 
-	var errors []schemas.Error = make([]schemas.Error, len(errorsData.Results))
+	var errors = make([]schemas.Error, len(errorsData.Results))
 	for i, e := range errorsData.Results {
 		if err := e.Value(&errors[i]); err != nil {
 			return []schemas.Error{}, err
@@ -1524,7 +1516,7 @@ func getEnv(id string) (schemas.Environment, error) {
 		return schemas.Environment{}, err
 	}
 
-	var events []schemas.Event = make([]schemas.Event, len(eventsData.Results))
+	var events = make([]schemas.Event, len(eventsData.Results))
 	for i, e := range eventsData.Results {
 		if err := e.Value(&events[i]); err != nil {
 			return schemas.Environment{}, err
