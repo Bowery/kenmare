@@ -385,10 +385,26 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		currentApp.Location = addr
 		currentApp.InstanceID = instanceID
+		backoff := util.NewBackoff(0)
 
 		// Wait till the agent is up and running.
 		for {
-			<-time.After(5 * time.Second)
+			if !backoff.Next() {
+				appError := &schemas.Error{
+					ID:        uuid.New(),
+					AppID:     currentApp.ID,
+					Body:      util.ErrBackoff.Error(),
+					Active:    true,
+					CreatedAt: time.Now(),
+				}
+
+				currentApp.Status = "error"
+				db.Put("applications", currentApp.ID, currentApp)
+				db.PutEvent("errors", currentApp.ID, "error", appError)
+				return
+			}
+
+			<-time.After(backoff.Delay)
 			log.Println("checking agent availability")
 			url := net.JoinHostPort(addr, config.BoweryAgentProdSyncPort)
 			res, err := http.Get(fmt.Sprintf("http://%s", url))
