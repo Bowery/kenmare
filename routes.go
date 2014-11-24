@@ -263,7 +263,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		EnvID:           envID,
 		DeveloperID:     dev.ID.Hex(),
 		Status:          "provisioning",
-		StatusMsg:       "Creating AWS instance",
+		StatusMsg:       "Step 1/4: Creating AWS instance",
 		Name:            body.Name,
 		Start:           body.Start,
 		Build:           body.Build,
@@ -364,7 +364,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		// have made changes since.
 		currentApp, _ = getApp(app.ID)
 
-		currentApp.StatusMsg = "Doing health checks"
+		currentApp.StatusMsg = "Step 2/4: Doing health checks"
 		db.Put("applications", currentApp.ID, currentApp)
 
 		// Check error.
@@ -400,7 +400,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 
-		currentApp.StatusMsg = "Executing image commands"
+		currentApp.StatusMsg = "Step 3/4: Executing image commands"
 		db.Put("applications", currentApp.ID, currentApp)
 
 		// Run commands on the new instance.
