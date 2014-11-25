@@ -46,7 +46,7 @@ func DelanceyExec(app schemas.Application, cmds []string) error {
 		return err
 	}
 
-	if execRes.Status == requests.STATUS_SUCCESS {
+	if execRes.Status == requests.StatusSuccess {
 		return nil
 	}
 
