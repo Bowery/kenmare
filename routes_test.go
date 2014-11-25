@@ -117,7 +117,7 @@ func TestCreateApplication(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status == requests.STATUS_FAILED {
+	if resp.Status == requests.StatusFailed {
 		t.Error("Reponse failed but should have succeeded ", resp.Err)
 	} else {
 		if resp.Application.DeveloperID != devs["apps"].ID.Hex() {
@@ -158,7 +158,7 @@ func TestCreateApplicationMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -197,7 +197,7 @@ func TestCreateApplicationBadToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -224,7 +224,7 @@ func TestGetApplications(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status == requests.STATUS_FAILED {
+	if resp.Status == requests.StatusFailed {
 		t.Error("Reponse failed but should have succeeded ", resp.Err)
 	} else {
 		if len(resp.Applications) < 1 {
@@ -262,7 +262,7 @@ func TestGetApplicationsNoToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Response succeeded but should have failed")
 	}
 }
@@ -285,7 +285,7 @@ func TestGetApplicationsBadToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Response succeeded but should have failed")
 	}
 }
@@ -310,7 +310,7 @@ func TestGetApplication(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status == requests.STATUS_FAILED {
+	if resp.Status == requests.StatusFailed {
 		t.Error("Response failed but should have succeeded ", resp.Err)
 	} else {
 		if resp.Application.Name != createdApp.Name {
@@ -336,7 +336,7 @@ func TestGetApplicationBadID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Response succeeded but should have failed")
 	}
 }
@@ -380,7 +380,7 @@ func TestUpdateApplication(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status == requests.STATUS_FAILED {
+	if resp.Status == requests.StatusFailed {
 		t.Error("Reponse failed but should have succeeded ", resp.Err)
 	} else {
 		if resp.Application.Name == createdApp.Name {
@@ -425,7 +425,7 @@ func TestUpdateApplicationNoToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -466,7 +466,7 @@ func TestUpdateApplicationBadToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -507,7 +507,7 @@ func TestUpdateApplicationBadID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -548,7 +548,7 @@ func TestUpdateApplicationUnauthorized(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -589,7 +589,7 @@ func TestUpdateApplicationAdmin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status == requests.STATUS_FAILED {
+	if resp.Status == requests.StatusFailed {
 		t.Error("Reponse failed but should have succeeded ", resp.Err)
 	} else {
 		if resp.Application.Name == createdApp.Name {
@@ -626,7 +626,7 @@ func TestRemoveApplication(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status == requests.STATUS_FAILED {
+	if resp.Status == requests.StatusFailed {
 		t.Error("Reponse failed but should have succeeded ", resp.Err)
 	}
 }
@@ -654,7 +654,7 @@ func TestRemoveApplicationMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -683,7 +683,7 @@ func TestRemoveApplicationBadToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -712,7 +712,7 @@ func TestRemoveApplicationBadToken(t *testing.T) {
 // 		t.Fatal(err)
 // 	}
 
-// 	if resp.Status != requests.STATUS_FAILED {
+// 	if resp.Status != requests.StatusFailed {
 // 		t.Error("Reponse succeeded but should have failed")
 // 	}
 // }
@@ -741,7 +741,7 @@ func TestRemoveApplicationBadToken(t *testing.T) {
 // 		t.Fatal(err)
 // 	}
 
-// 	if resp.Status != requests.STATUS_FAILED {
+// 	if resp.Status != requests.StatusFailed {
 // 		t.Error("Reponse succeeded but should have failed")
 // 	}
 // }
@@ -756,7 +756,7 @@ func TestRemoveApplicationAdmin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if createResp.Status == requests.STATUS_FAILED {
+	if createResp.Status == requests.StatusFailed {
 		t.Fatal(createResp.Err)
 	} else {
 		createdApp = createResp.Application
@@ -781,7 +781,7 @@ func TestRemoveApplicationAdmin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status == requests.STATUS_FAILED {
+	if resp.Status == requests.StatusFailed {
 		t.Error("Reponse failed but should have succeeded ", resp.Err)
 	}
 }
@@ -803,7 +803,7 @@ func TestGetEnvironmentBadID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp.Status != requests.STATUS_FAILED {
+	if resp.Status != requests.StatusFailed {
 		t.Error("Reponse succeeded but should have failed")
 	}
 }
@@ -885,7 +885,7 @@ func testShareEnv(envID, token, email string) (*schemas.Environment, error) {
 		return nil, err
 	}
 
-	if resp.Status != requests.STATUS_SUCCESS {
+	if resp.Status != requests.StatusSuccess {
 		return nil, errors.New(resp.Err)
 	}
 
@@ -917,7 +917,7 @@ func broomeHandler(rw http.ResponseWriter, req *http.Request) {
 	token := req.FormValue("token")
 	if token == "" {
 		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.STATUS_FAILED,
+			"status": requests.StatusFailed,
 			"error":  "token required",
 		})
 		return
@@ -926,14 +926,14 @@ func broomeHandler(rw http.ResponseWriter, req *http.Request) {
 	dev, ok := devs[token]
 	if ok {
 		renderer.JSON(rw, http.StatusOK, map[string]interface{}{
-			"status":    requests.STATUS_FOUND,
+			"status":    requests.StatusFound,
 			"developer": dev,
 		})
 		return
 	}
 
 	renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-		"status": requests.STATUS_FAILED,
+		"status": requests.StatusFailed,
 		"error":  "invalid token",
 	})
 }
