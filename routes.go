@@ -29,6 +29,7 @@ import (
 	"github.com/Bowery/gopackages/util"
 	"github.com/Bowery/gopackages/web"
 	"github.com/gorilla/mux"
+	"github.com/orchestrate-io/gorc"
 	"github.com/stathat/go"
 	"github.com/unrolled/render"
 )
@@ -980,9 +981,8 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// If query is default, return default environments
-	// as well as any environments that the requesting
-	// developer has set as private, as well as any
-	// environments that have been shared with them.
+	// as well as the environments the developer has created,
+	// and any private environments that have been shared with them.
 	if query == "default" {
 		token := req.FormValue("token")
 		results := defaultEnvs
@@ -995,7 +995,7 @@ func searchEnvironmentsHandler(rw http.ResponseWriter, req *http.Request) {
 				})
 				return
 			}
-			query := fmt.Sprintf("(value.isPrivate:true AND developerID:%s) OR value.accessList:\"%s\"",
+			query := fmt.Sprintf("developerID:\"%s\" OR accessList:\"%s\"",
 				dev.ID.Hex(), dev.Email)
 			envs, err := searchEnvs(query)
 			if err != nil {
@@ -1549,14 +1549,38 @@ func getEnv(id string) (schemas.Environment, error) {
 }
 
 func searchEnvs(query string) ([]schemas.Environment, error) {
+	var envs []schemas.Environment
+	filter := func(list []gorc.SearchResult) error {
+		var env schemas.Environment
+
+		for _, result := range list {
+			err := result.Value(&env)
+			if err != nil {
+				return err
+			}
+
+			if env.Name != "" {
+				envs = append(envs, env)
+			}
+		}
+
+		return nil
+	}
+
 	envsData, err := db.Search("environments", query, 100, 0)
+	if err == nil {
+		err = filter(envsData.Results)
+	}
 	if err != nil {
 		return []schemas.Environment{}, err
 	}
 
-	envs := make([]schemas.Environment, len(envsData.Results))
-	for i, a := range envsData.Results {
-		if err := a.Value(&envs[i]); err != nil {
+	for envsData.HasNext() {
+		envsData, err = db.SearchGetNext(envsData)
+		if err == nil {
+			err = filter(envsData.Results)
+		}
+		if err != nil {
 			return []schemas.Environment{}, err
 		}
 	}
