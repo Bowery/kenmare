@@ -276,7 +276,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Write to Orchestrate.
-	_, err = db.Put("applications", appID, app)
+	_, err = db.Put(schemas.ApplicationsCollection, appID, app)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
@@ -312,11 +312,11 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	_, err = db.Put("environments", envID, &newEnv)
+	_, err = db.Put(schemas.EnvironmentsCollection, envID, &newEnv)
 	if err == nil {
 		for _, e := range sourceEnv.Events {
 			// todo(steve): maybe handle the error
-			db.PutEvent("environments", envID, "command", e)
+			db.PutEvent(schemas.EnvironmentsCollection, envID, "command", e)
 		}
 	}
 	app.Environment = newEnv
@@ -346,8 +346,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 				Active:    true,
 				CreatedAt: time.Now(),
 			}
-			db.Put("applications", currentApp.ID, currentApp)
-			db.PutEvent("errors", currentApp.ID, "error", appError)
+			db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
+			db.PutEvent(schemas.ErrorsCollection, currentApp.ID, "error", appError)
 		}
 
 		elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
@@ -355,7 +355,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		// Update application.
 		currentApp.InstanceID = instanceID
-		db.Put("applications", currentApp.ID, currentApp)
+		db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
 
 		// Check Instance.
 		log.Println("checking instance")
@@ -366,7 +366,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		currentApp, _ = getApp(app.ID)
 
 		currentApp.StatusMsg = "Step 2/4: Doing health checks"
-		db.Put("applications", currentApp.ID, currentApp)
+		db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
 
 		// Check error.
 		if err != nil {
@@ -379,8 +379,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 			}
 
 			currentApp.Status = "error"
-			db.Put("applications", currentApp.ID, currentApp)
-			db.PutEvent("errors", currentApp.ID, "error", appError)
+			db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
+			db.PutEvent(schemas.ErrorsCollection, currentApp.ID, "error", appError)
 			return
 		}
 
@@ -400,8 +400,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 				}
 
 				currentApp.Status = "error"
-				db.Put("applications", currentApp.ID, currentApp)
-				db.PutEvent("errors", currentApp.ID, "error", appError)
+				db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
+				db.PutEvent(schemas.ErrorsCollection, currentApp.ID, "error", appError)
 				return
 			}
 
@@ -418,7 +418,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		currentApp.StatusMsg = "Step 3/4: Executing image commands"
-		db.Put("applications", currentApp.ID, currentApp)
+		db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
 
 		// Run commands on the new instance.
 		cmds := []string{}
@@ -441,11 +441,11 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		currentApp.Status = "running"
 		currentApp.StatusMsg = ""
 		currentApp.IsSyncAvailable = true
-		db.Put("applications", currentApp.ID, currentApp)
+		db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
 
 		// Increment count
 		sourceEnv.Count++
-		db.Put("environments", sourceEnv.ID, sourceEnv)
+		db.Put(schemas.EnvironmentsCollection, sourceEnv.ID, sourceEnv)
 	}()
 
 	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
@@ -477,7 +477,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	query := fmt.Sprintf(`developerId:"%s"`, dev.ID.Hex())
-	appsData, err := db.Search("applications", query, 100, 0)
+	appsData, err := db.Search(schemas.ApplicationsCollection, query, 100, 0)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"dev": dev,
@@ -597,7 +597,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get the application.
-	appData, err := db.Get("applications", id)
+	appData, err := db.Get(schemas.ApplicationsCollection, id)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
@@ -652,7 +652,7 @@ func updateApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		app.LocalPath = body.LocalPath
 	}
 
-	_, err = db.Put("applications", app.ID, app)
+	_, err = db.Put(schemas.ApplicationsCollection, app.ID, app)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"app": app,
@@ -714,7 +714,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	appData, err := db.Get("applications", id)
+	appData, err := db.Get(schemas.ApplicationsCollection, id)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"dev": dev,
@@ -809,7 +809,7 @@ func removeApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Remove the app from the db.
-	db.Delete("applications", id) // yolo(steve): wild'n'out.
+	db.Delete(schemas.ApplicationsCollection, id) // yolo(steve): wild'n'out.
 	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.StatusSuccess,
 	})
@@ -902,7 +902,7 @@ func saveApplicationByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		env.AMI = imageID
-		db.Put("environments", env.ID, env)
+		db.Put(schemas.EnvironmentsCollection, env.ID, env)
 	}()
 
 	renderer.JSON(rw, http.StatusOK, map[string]string{
@@ -1132,7 +1132,7 @@ func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		environment.AccessList = body.AccessList
 	}
 
-	_, err = db.Put("environments", environment.ID, environment)
+	_, err = db.Put(schemas.EnvironmentsCollection, environment.ID, environment)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"id": id,
@@ -1205,7 +1205,7 @@ func shareEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// update permissions.
 	environment.AccessList = util.AppendUniqueStr(environment.AccessList, body.Email)
-	_, err = db.Put("environments", environment.ID, environment)
+	_, err = db.Put(schemas.EnvironmentsCollection, environment.ID, environment)
 	if err != nil {
 		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.StatusFailed,
@@ -1258,7 +1258,7 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	_, err = db.Get("environments", envID)
+	_, err = db.Get(schemas.EnvironmentsCollection, envID)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
@@ -1278,7 +1278,7 @@ func createEventHandler(rw http.ResponseWriter, req *http.Request) {
 		CreatedAt: time.Now(),
 	}
 
-	err = db.PutEvent("environments", envID, typ, event)
+	err = db.PutEvent(schemas.EnvironmentsCollection, envID, typ, event)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"envID": envID,
@@ -1455,7 +1455,7 @@ func adminUpdateEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 	env.DeveloperID = body.DeveloperID
 	env.AMI = body.AMI
 
-	_, err = db.Put("environments", env.ID, env)
+	_, err = db.Put(schemas.EnvironmentsCollection, env.ID, env)
 	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.StatusSuccess,
 	})
@@ -1464,7 +1464,7 @@ func adminUpdateEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
 // getApp retrieves an application and it's associated errors
 // from Orchestrate.
 func getApp(id string) (schemas.Application, error) {
-	appData, err := db.Get("applications", id)
+	appData, err := db.Get(schemas.ApplicationsCollection, id)
 	if err != nil {
 		return schemas.Application{}, err
 	}
@@ -1491,7 +1491,7 @@ func getApp(id string) (schemas.Application, error) {
 
 // getAppErrors get an app's errors from Orchestrate.
 func getAppErrors(id string) ([]schemas.Error, error) {
-	errorsData, err := db.GetEvents("errors", id, "error")
+	errorsData, err := db.GetEvents(schemas.ErrorsCollection, id, "error")
 	if err != nil {
 		return []schemas.Error{}, err
 	}
@@ -1518,7 +1518,7 @@ func (v byCreatedAt) Less(i, j int) bool { return v[i].CreatedAt.Unix() < v[j].C
 // from Orchestrate. If an environment and events are found,
 // the events are sorted in ascending order.
 func getEnv(id string) (schemas.Environment, error) {
-	envData, err := db.Get("environments", id)
+	envData, err := db.Get(schemas.EnvironmentsCollection, id)
 	if err != nil {
 		return schemas.Environment{}, err
 	}
@@ -1528,7 +1528,7 @@ func getEnv(id string) (schemas.Environment, error) {
 		return schemas.Environment{}, err
 	}
 
-	eventsData, err := db.GetEvents("environments", id, "command")
+	eventsData, err := db.GetEvents(schemas.EnvironmentsCollection, id, "command")
 	if err != nil {
 		return schemas.Environment{}, err
 	}
@@ -1567,7 +1567,7 @@ func searchEnvs(query string) ([]schemas.Environment, error) {
 		return nil
 	}
 
-	envsData, err := db.Search("environments", query, 100, 0)
+	envsData, err := db.Search(schemas.EnvironmentsCollection, query, 100, 0)
 	if err == nil {
 		err = filter(envsData.Results)
 	}
