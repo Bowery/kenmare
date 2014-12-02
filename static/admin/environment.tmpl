@@ -19,6 +19,11 @@
 .response.success {
   color: green;
 }
+textarea {
+  margin: 0px;
+  height: 300px;
+  width: 400px;
+}
 </style>
 <h1>Kenmare Admin</h1>
 <form id="update-form">
@@ -38,6 +43,14 @@
   <div class="form-group">
     <label for="ami">AMI</label>
     <input type="text" placeholder="ami..." name="ami" value="{{.Environment.AMI}}" />
+  </div>
+  <div class="form-group">
+    <label for="commands">Commands (not editable currently)</label>
+    <textarea>
+    {{range $index, $element := .Environment.Events}}
+    {{.Body}}
+    {{end}}
+    </textarea>
   </div>
   <div class="form-group">
     <input type="submit" value="Update" />
