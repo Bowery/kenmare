@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/requests"
@@ -16,6 +17,31 @@ import (
 type commandsReq struct {
 	AppID string   `json:"appID"`
 	Cmds  []string `json:"cmds"`
+}
+
+// DelanceyPassword sends a request to set the password on the agent.
+func DelanceyPassword(app *schemas.Application) error {
+	addr := net.JoinHostPort(app.Location, config.BoweryAgentProdSyncPort)
+	resp, err := http.PostForm(fmt.Sprintf("http://%s/password", addr), url.Values{
+		"user": {app.User}, "password": {app.Password},
+	})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	res := new(requests.Res)
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(res)
+	if err != nil {
+		return err
+	}
+
+	if res.Status != requests.StatusSuccess {
+		return res
+	}
+
+	return nil
 }
 
 // DelanceyExec sends commands to a Delancey agent to be executed.
