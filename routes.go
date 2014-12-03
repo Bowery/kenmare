@@ -258,7 +258,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	// Create app. This also will create a new environment.
 	appID := uuid.New()
 	envID = uuid.New()
-	pass, err := util.Encrypt([]byte(dev.License), []byte(dev.Salt), uuid.NewRandom())
+	plainPass := uuid.New()
+	pass, err := util.Encrypt([]byte(dev.License), []byte(dev.Salt), []byte(plainPass))
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"body": body,
@@ -435,7 +436,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
 
 		// Setup ssh with the password.
-		err = DelanceyPassword(&currentApp)
+		err = DelanceyPassword(&currentApp, plainPass)
 		if err != nil {
 			// todo: do something with the error.
 			log.Println(err)

@@ -20,10 +20,10 @@ type commandsReq struct {
 }
 
 // DelanceyPassword sends a request to set the password on the agent.
-func DelanceyPassword(app *schemas.Application) error {
+func DelanceyPassword(app *schemas.Application, pass string) error {
 	addr := net.JoinHostPort(app.Location, config.BoweryAgentProdSyncPort)
 	resp, err := http.PostForm(fmt.Sprintf("http://%s/password", addr), url.Values{
-		"user": {app.User}, "password": {app.Password},
+		"user": {app.User}, "password": {pass},
 	})
 	if err != nil {
 		return err
