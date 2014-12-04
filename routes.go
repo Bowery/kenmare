@@ -54,6 +54,7 @@ var routes = []web.Route{
 	{"GET", "/_/stats/instance-count", getInstanceCountHandler, false},
 	{"GET", "/admin", adminHomeHandler, true},
 	{"GET", "/admin/environments", adminSearchHandler, true},
+	{"GET", "/admin/environments/config", adminGetEnvironmentConfigHandler, true},
 	{"GET", "/admin/environments/{id}", adminGetEnvironmentHandler, true},
 	{"POST", "/admin/environments/{id}", adminUpdateEnvironmentHandler, true},
 }
@@ -62,6 +63,8 @@ var renderer = render.New(render.Options{
 	IndentJSON:    true,
 	IsDevelopment: true,
 })
+
+var baseEnvID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
 
 func authHandler(req *http.Request, user, pass string) (bool, error) {
 	var body bytes.Buffer
@@ -152,7 +155,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// If an environment id is not specified, default.
 	if envID == "" {
-		envID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
+		envID = baseEnvID
 	}
 
 	// Fetch environment.
@@ -1406,6 +1409,19 @@ func adminHomeHandler(rw http.ResponseWriter, req *http.Request) {
 // adminSearchHandler
 func adminSearchHandler(rw http.ResponseWriter, req *http.Request) {
 	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "search.tmpl"), map[string]interface{}{})
+}
+
+// adminGetEnvironmentConfigHandler
+func adminGetEnvironmentConfigHandler(rw http.ResponseWriter, req *http.Request) {
+	env, err := getEnv(baseEnvID)
+	if err != nil {
+		web.RenderHTML(rw, filepath.Join(staticDir, "admin", "error.tmpl"), map[string]interface{}{})
+		return
+	}
+
+	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "config.tmpl"), map[string]interface{}{
+		"Environment": env,
+	})
 }
 
 // adminEnvironmentHandler
