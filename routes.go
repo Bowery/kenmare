@@ -258,26 +258,13 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 	// Create app. This also will create a new environment.
 	appID := uuid.New()
 	envID = uuid.New()
-	plainPass := uuid.New()
-	pass, err := util.Encrypt([]byte(dev.License), []byte(dev.Salt), []byte(plainPass))
-	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"body": body,
-			"dev":  dev,
-		})
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
-	}
 
 	app := schemas.Application{
 		ID:              appID,
 		EnvID:           envID,
 		DeveloperID:     dev.ID.Hex(),
 		User:            "ubuntu",
-		Password:        string(pass),
+		Password:        uuid.New(),
 		Status:          "provisioning",
 		StatusMsg:       "Step 1/4: Creating AWS instance",
 		Name:            body.Name,
@@ -436,7 +423,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
 
 		// Setup ssh with the password.
-		err = DelanceyPassword(&currentApp, plainPass)
+		err = DelanceyPassword(&currentApp)
 		if err != nil {
 			// todo: do something with the error.
 			log.Println(err)
