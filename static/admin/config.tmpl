@@ -1,0 +1,21 @@
+<style>
+.form-group {
+  margin-bottom: 15px;
+}
+.form-group label {
+  display: block;
+}
+.form-group input {
+  outline: none;
+}
+
+.back:before {
+  content: "\2190";
+}
+</style>
+<h1>Kenmare Admin</h1>
+<h3>Master Config</h3>
+<ul>
+  <li>AMI: {{.Environment.AMI}}</li>
+</ul>
+<a class="back" href="/admin">Back</a>
