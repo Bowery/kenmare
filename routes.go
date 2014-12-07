@@ -1382,7 +1382,7 @@ func clientCheckHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getInstanceCountHandler(rw http.ResponseWriter, req *http.Request) {
-	count, err := awsC.GetInstanceCount()
+	count, err := awsC.GetInstanceCountTotal()
 	if err != nil {
 		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.StatusFailed,
