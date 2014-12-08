@@ -19,7 +19,7 @@ def restart():
   with cd('/home/ubuntu/gocode/src/github.com/Bowery/' + project):
     run('git pull')
     sudo('GOPATH=/home/ubuntu/gocode go get -d')
-    sudo('GOPATH=/home/ubuntu/gocode go build')
+    sudo('GOPATH=/home/ubuntu/gocode go build -o kenmare-server')
 
     sudo('cp -f ' + project + '.conf /etc/init/' + project + '.conf')
     sudo('initctl reload-configuration')
