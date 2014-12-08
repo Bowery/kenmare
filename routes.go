@@ -1,4 +1,5 @@
 // Copyright 2014 Bowery, Inc.
+
 package main
 
 import (
@@ -48,6 +49,8 @@ var routes = []web.Route{
 	{"PUT", "/environments/{id}", updateEnvironmentByIDHandler, false},
 	{"PUT", "/environments/{id}/share", shareEnvironmentByIDHandler, false},
 	{"DELETE", "/environments/{id}/share", revokeAcccessToEnvByIDHandler, false},
+	{"POST", "/containers", createContainerHandler, false},
+	{"DELETE", "/containers/:id", deleteContainerByIDHandler, false},
 	{"POST", "/events", createEventHandler, false},
 	{"GET", "/auth/validate-keys", validateKeysHandler, false},
 	{"GET", "/client/check", clientCheckHandler, false},
@@ -1227,6 +1230,21 @@ func revokeAcccessToEnvByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// todo(steve).
 	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.StatusSuccess,
+	})
+}
+
+func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
+	// todo(steve).
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":    requests.StatusCreated,
+		"container": schemas.Container{},
+	})
+}
+
+func deleteContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	// todo(steve).
+	renderer.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.StatusRemoved,
 	})
 }
 
