@@ -30,6 +30,7 @@ func CreateContainer(imageID string) (*schemas.Container, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer res.Body.Close()
 
 	var resBody requests.ContainerRes
 	decoder := json.NewDecoder(res.Body)
