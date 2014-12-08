@@ -1,43 +1,38 @@
 # kenmare
 
-Bowery Environment Manager.
+Kenmare is responsible for the lifecycle of an environment. From creation, to update, to termination, Kenmare takes care of it.
 
-## About
+## Development
 
-Kenmare is responsible for creating and managing development environments, and keeping track of events that occur in them.
-It is able to spin up instances on EC2, and will eventually be able to assist in reconstructing an environment
-using the events it keeps track of.
+The kenmare server listens on port 3000 in development and can be started by running:
 
-Kenmare uses Orchestrate.io as a datastore.
+```
+$ go get -d && go build -o kenmare-server && ./kenmare-server
+```
 
-## Routes
+## Tests
 
-### `POST /applications`
+```
+$ go test ./...
+```
 
-Create a new application and associated environment. If the request includes an environment identifier, replicate that environment. Note: that functionality does not exist yet
+## Integration
 
-**Required params:** `ami`, `instance_type`, `aws_access_key`, `aws_secret_key`, `token`.
+Kenmare comes bundled with some useful client methods for interacting with Kenmare, which can be found in `/kenmare`.
 
-**Optional params:** `envID`, `ports`.
+For example:
 
-### `GET /applications?token={token}`
+```go
+import (
+  "github.com/Bowery/kenmare/kenmare"
+)
 
-Get all applications owned by the user with the specified token.
+func main() {
+  container, err := kenmare.CreateContainer("some-image-id")
+  if err != nil {
+    t.Fatal(err)
+  }
 
-### `GET /applications/{id}`
-
-Get an application by id.
-
-### `DELETE /applications/{id}?token={token}`
-
-Delete an application by id owned by the user with the specified token.
-
-### `GET /environments/{id}`
-
-Get an environment and associated events.
-
-### `POST /events`
-
-Create an event.
-
-**Required params:** `type`, `body`, `envID`.
+  log.Println(container.ID)
+}
+```
