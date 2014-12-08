@@ -3,6 +3,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -28,7 +29,7 @@ var (
 )
 
 func main() {
-	flag.StringVar(&env, "env", "development", "Mode to run Kepler in.")
+	flag.StringVar(&env, "env", "development", "Mode to run Kenmare in.")
 	flag.StringVar(&port, "port", ":3000", "Port to listen on.")
 	flag.Parse()
 
@@ -47,6 +48,7 @@ func main() {
 	db = gorc.NewClient(orchestrateKey)
 	awsC, _ = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 
+	fmt.Println("Firing up Kenmare in", env, "environment...")
 	server := web.NewServer(port, []web.Handler{
 		new(web.SlashHandler),
 		new(web.CorsHandler),
