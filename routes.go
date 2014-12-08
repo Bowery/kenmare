@@ -269,6 +269,8 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 		ID:              appID,
 		EnvID:           envID,
 		DeveloperID:     dev.ID.Hex(),
+		User:            "ubuntu",
+		Password:        uuid.New(),
 		Status:          "provisioning",
 		StatusMsg:       "Step 1/4: Creating AWS instance",
 		Name:            body.Name,
@@ -425,6 +427,13 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		currentApp.StatusMsg = "Step 3/4: Executing image commands"
 		db.Put(schemas.ApplicationsCollection, currentApp.ID, currentApp)
+
+		// Setup ssh with the password.
+		err = DelanceyPassword(&currentApp)
+		if err != nil {
+			// todo: do something with the error.
+			log.Println(err)
+		}
 
 		// Run commands on the new instance.
 		cmds := []string{}
