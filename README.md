@@ -7,13 +7,29 @@ Kenmare is responsible for the lifecycle of an environment. From creation, to up
 The kenmare server listens on port 3000 in development and can be started by running:
 
 ```
-$ go get -d && go build -o kenmare-server && ./kenmare-server
+$ make
 ```
 
 ## Tests
 
 ```
-$ go test ./...
+$ make test
+```
+
+## Formatting
+
+Bowery's packages are formatted via [gofmt](https://golang.org/cmd/gofmt/) and linted via [golint](https://github.com/golang/lint).
+
+You can install these tools by running
+
+```
+$ make deps
+```
+
+And you can format and lint by running
+
+```
+$ make format
 ```
 
 ## Integration

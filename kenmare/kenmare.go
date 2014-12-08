@@ -45,7 +45,7 @@ func CreateContainer(imageID string) (*schemas.Container, error) {
 	return resBody.Container, nil
 }
 
-// CreateContainer requests kenmare to delete a container.
+// DeleteContainer requests kenmare to delete a container.
 func DeleteContainer(imageID string) error {
 	addr := fmt.Sprintf("%s/containers/%s", config.KenmareAddr, imageID)
 	req, err := http.NewRequest("DELETE", addr, nil)
