@@ -1233,14 +1233,59 @@ func revokeAcccessToEnvByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// createContainerHandler creates a container on an available AWS instance.
+// If provided, the container created will be based on the `imageID`. During
+// the creation process, if Kenmare detects the instance pool is below
+// it's threshold, it will refill the pool in a separate routine.
 func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
-	// todo(steve).
+	var body requests.ContainerReq
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&body)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	imageID := body.ImageID
+	if imageID == "" {
+		imageID = uuid.New()
+	}
+
+	container := &schemas.Container{
+		ID:        uuid.New(),
+		ImageID:   imageID,
+		CreatedAt: time.Now(),
+	}
+
+	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
+	if err != nil {
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// In a separate routine, select an instance from the pool, reset
+	// the agent, launch the appropriate container via the Docker
+	// remote api, and update Orchestrate with the new information.
+	if env != "testing" {
+		go func() {
+			// todo
+		}()
+	}
+
 	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":    requests.StatusCreated,
-		"container": schemas.Container{},
+		"container": container,
 	})
 }
 
+// deleteContainerByIDHandler terminates a container and sets the instance
+// as available.
 func deleteContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// todo(steve).
 	renderer.JSON(rw, http.StatusOK, map[string]string{

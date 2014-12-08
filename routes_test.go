@@ -892,6 +892,40 @@ func testShareEnv(envID, token, email string) (*schemas.Environment, error) {
 	return resp.Environment, nil
 }
 
+func TestCreateContainerSuccessful(t *testing.T) {
+	server := startServer()
+	defer server.Close()
+
+	containerReq := &requests.ContainerReq{
+		ImageID: "some-image-id",
+	}
+
+	var body bytes.Buffer
+	encoder := json.NewEncoder(&body)
+	err := encoder.Encode(containerReq)
+	if err != nil {
+		t.Error(err)
+	}
+
+	addr := fmt.Sprintf("%s/containers", server.URL)
+	res, err := http.Post(addr, "application/json", &body)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	var resBody requests.ContainerRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resBody.Status != requests.StatusCreated {
+		t.Error("unexpected status returned", resBody.Status)
+	}
+}
+
 // Start a server passing the request through mux for route processing.
 func startServer() *httptest.Server {
 	router := mux.NewRouter()
