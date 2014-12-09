@@ -147,6 +147,13 @@ func allocateInstances(num int, awsClient *aws.Client) error {
 				return
 			}
 
+			// Add the status tag for the new instance
+			e = awsClient.TagInstance(instanceID, map[string]string{"status": "spare"})
+			if e != nil {
+				err = e
+				return
+			}
+
 			instance.InstanceID = instanceID
 			instance.Address = addr
 			instance.AMI = "ami-346ec15c"
@@ -247,6 +254,20 @@ func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 
 	instance := instances[num.Int64()]
 	err = db.Delete(schemas.InstancesCollection, instance.ID)
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"instances": instances,
+			"instance":  instance,
+		})
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Update the status tag for the now-used instance
+	err = awsClient.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"instances": instances,
