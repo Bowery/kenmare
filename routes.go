@@ -63,6 +63,7 @@ var routes = []web.Route{
 	{"GET", "/admin/environments/{id}", adminGetEnvironmentHandler, true},
 	{"POST", "/admin/environments/{id}", adminUpdateEnvironmentHandler, true},
 	{"GET", "/instances", createInstanceHandler, false},
+	{"DELETE", "/instances", deleteInstanceHandler, false},
 }
 
 var renderer = render.New(render.Options{
@@ -287,8 +288,59 @@ func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func deleteInstanceHandler(rw http.ResponseWriter, req *http.Request) {
+	awsClient, err := aws.NewClient(config.S3AccessKey, config.S3SecretKey)
+	if err != nil {
+		rollbarC.Report(err, nil)
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
 	// destroy/remove container and anything else needed for a clean instance
-	// add to instance collection
+
+	instance := new(schemas.Instance)
+	decoder := json.NewDecoder(req.Body)
+	err = decoder.Decode(instance)
+	if err != nil {
+		rollbarC.Report(err, nil)
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Add the instance back to the spare pool in the database
+	_, err = db.Put(schemas.InstancesCollection, instance.ID, instance)
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"instance": instance,
+		})
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// re-tag the instance 'spare' on EC2
+	err = awsClient.TagInstance(instance.InstanceID, map[string]string{"status": "spare"})
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"instance": instance,
+		})
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status": requests.StatusSuccess,
+	})
 }
 
 // createEnvironmentHandler creates a new environment
