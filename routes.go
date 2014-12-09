@@ -4,10 +4,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"net/mail"
@@ -60,6 +62,7 @@ var routes = []web.Route{
 	{"GET", "/admin/environments/config", adminGetEnvironmentConfigHandler, true},
 	{"GET", "/admin/environments/{id}", adminGetEnvironmentHandler, true},
 	{"POST", "/admin/environments/{id}", adminUpdateEnvironmentHandler, true},
+	{"GET", "/instances", createInstanceHandler, false},
 }
 
 var renderer = render.New(render.Options{
@@ -113,6 +116,158 @@ type applicationReq struct {
 	Init         string `json:"init"`
 	LocalPath    string `json:"localPath"`
 	RemotePath   string `json:"remotePath"`
+}
+
+// allocateInstances creates instances on EC2, and inserts corresponding
+// records in the instances collection.
+func allocateInstances(num int, awsClient *aws.Client) error {
+	var err error
+	var wg sync.WaitGroup
+
+	// Create instances in parallel
+	for i := 0; i < num; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			instance := &schemas.Instance{
+				ID: uuid.New(),
+			}
+
+			fmt.Println("Creating instance", instance.ID)
+			instanceID, e := awsClient.CreateInstance("ami-346ec15c", "m3.medium", instance.ID, []int{}, false)
+			if e != nil {
+				err = e
+				return
+			}
+
+			addr, e := awsClient.CheckInstance(instanceID)
+			if e != nil {
+				err = e
+				return
+			}
+
+			instance.InstanceID = instanceID
+			instance.Address = addr
+			instance.AMI = "ami-346ec15c"
+
+			_, e = db.Put(schemas.InstancesCollection, instance.ID, instance)
+			if e != nil {
+				err = e
+				return
+			}
+		}()
+	}
+
+	// Wait for all instances to be created and database is current
+	wg.Wait()
+	return err
+}
+
+func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
+	awsClient, err := aws.NewClient(config.S3AccessKey, config.S3SecretKey)
+	if err != nil {
+		rollbarC.Report(err, nil)
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// get list of instances from instance collection
+	results, err := db.Search(schemas.InstancesCollection, "*", 100, 0)
+	if err != nil {
+		rollbarC.Report(err, nil)
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+	refresh := false
+
+	// check total for need to add to the pool
+	if results.TotalCount == 0 {
+		err = allocateInstances(20, awsClient)
+		if err != nil {
+			rollbarC.Report(err, nil)
+			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+				"status": requests.StatusFailed,
+				"error":  err.Error(),
+			})
+			return
+		}
+		refresh = true
+	} else if results.TotalCount <= 15 {
+		go allocateInstances(20, awsClient)
+		refresh = true
+	}
+
+	if refresh {
+		results, err = db.Search(schemas.InstancesCollection, "*", 100, 0)
+		if err != nil {
+			rollbarC.Report(err, nil)
+			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+				"status": requests.StatusFailed,
+				"error":  err.Error(),
+			})
+			return
+		}
+	}
+
+	// Fetch a current list of instances from the database
+	instances := make([]schemas.Instance, results.Count)
+	for i, result := range results.Results {
+		err := result.Value(&instances[i])
+		if err != nil {
+			rollbarC.Report(err, map[string]interface{}{
+				"instances": instances,
+			})
+			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+				"status": requests.StatusFailed,
+				"error":  err.Error(),
+			})
+			return
+		}
+	}
+
+	// Choose a random instance from the database, remove it and return that to the client
+	num, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"instances": instances,
+		})
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	instance := instances[num.Int64()]
+	err = db.Delete(schemas.InstancesCollection, instance.ID)
+	if err != nil {
+		rollbarC.Report(err, map[string]interface{}{
+			"instances": instances,
+			"instance":  instance,
+		})
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":   requests.StatusSuccess,
+		"instance": instance,
+	})
+}
+
+func deleteInstanceHandler(rw http.ResponseWriter, req *http.Request) {
+	// destroy/remove container and anything else needed for a clean instance
+	// add to instance collection
 }
 
 // createEnvironmentHandler creates a new environment
