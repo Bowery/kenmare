@@ -73,6 +73,11 @@ var renderer = render.New(render.Options{
 
 var baseEnvID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
 
+// Minimum number of instances to have in the spare pool
+const (
+	InstancePoolMin = 20
+)
+
 func authHandler(req *http.Request, user, pass string) (bool, error) {
 	var body bytes.Buffer
 	bodyReq := &requests.LoginReq{Email: user, Password: pass}
@@ -121,7 +126,7 @@ type applicationReq struct {
 
 // allocateInstances creates instances on EC2, and inserts corresponding
 // records in the instances collection.
-func allocateInstances(num int, awsClient *aws.Client) error {
+func allocateInstances(num int) error {
 	var err error
 	var wg sync.WaitGroup
 
@@ -136,20 +141,20 @@ func allocateInstances(num int, awsClient *aws.Client) error {
 			}
 
 			fmt.Println("Creating instance", instance.ID)
-			instanceID, e := awsClient.CreateInstance("ami-346ec15c", "m3.medium", instance.ID, []int{}, false)
+			instanceID, e := awsC.CreateInstance(aws.DefaultAMI, aws.DefaultInstanceType, instance.ID, []int{}, false)
 			if e != nil {
 				err = e
 				return
 			}
 
-			addr, e := awsClient.CheckInstance(instanceID)
+			addr, e := awsC.CheckInstance(instanceID)
 			if e != nil {
 				err = e
 				return
 			}
 
 			// Add the status tag for the new instance
-			e = awsClient.TagInstance(instanceID, map[string]string{"status": "spare"})
+			e = awsC.TagInstance(instanceID, map[string]string{"status": "spare"})
 			if e != nil {
 				err = e
 				return
@@ -157,7 +162,7 @@ func allocateInstances(num int, awsClient *aws.Client) error {
 
 			instance.InstanceID = instanceID
 			instance.Address = addr
-			instance.AMI = "ami-346ec15c"
+			instance.AMI = aws.DefaultAMI
 
 			_, e = db.Put(schemas.InstancesCollection, instance.ID, instance)
 			if e != nil {
@@ -173,16 +178,6 @@ func allocateInstances(num int, awsClient *aws.Client) error {
 }
 
 func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
-	awsClient, err := aws.NewClient(config.S3AccessKey, config.S3SecretKey)
-	if err != nil {
-		rollbarC.Report(err, nil)
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
-	}
-
 	// get list of instances from instance collection
 	results, err := db.Search(schemas.InstancesCollection, "*", 100, 0)
 	if err != nil {
@@ -197,7 +192,7 @@ func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// check total for need to add to the pool
 	if results.TotalCount == 0 {
-		err = allocateInstances(20, awsClient)
+		err = allocateInstances(20)
 		if err != nil {
 			rollbarC.Report(err, nil)
 			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
@@ -208,7 +203,7 @@ func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 		refresh = true
 	} else if results.TotalCount <= 15 {
-		go allocateInstances(20, awsClient)
+		go allocateInstances(20)
 		refresh = true
 	}
 
@@ -268,7 +263,7 @@ func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Update the status tag for the now-used instance
-	err = awsClient.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
+	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"instances": instances,
@@ -297,8 +292,6 @@ func deleteInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 		})
 		return
 	}
-
-	// destroy/remove container and anything else needed for a clean instance
 
 	instance := new(schemas.Instance)
 	decoder := json.NewDecoder(req.Body)
