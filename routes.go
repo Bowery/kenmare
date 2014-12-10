@@ -175,15 +175,15 @@ func allocateInstances(num int) error {
 	return err
 }
 
-func createInstance() (*schemas.Instance, error) {
-	// get list of instances from instance collection
+func getInstance() (*schemas.Instance, error) {
+	// Get list of instances from instance collection.
 	results, err := db.Search(schemas.InstancesCollection, "*", 100, 0)
 	if err != nil {
 		return nil, err
 	}
 	refresh := false
 
-	// check total for need to add to the pool
+	// Check total for need to add to the pool.
 	if results.TotalCount == 0 {
 		err = allocateInstances(20)
 		if err != nil {
@@ -202,7 +202,7 @@ func createInstance() (*schemas.Instance, error) {
 		}
 	}
 
-	// Fetch a current list of instances from the database
+	// Fetch a current list of instances from the database.
 	instances := make([]schemas.Instance, results.Count)
 	for i, result := range results.Results {
 		err := result.Value(&instances[i])
@@ -211,7 +211,8 @@ func createInstance() (*schemas.Instance, error) {
 		}
 	}
 
-	// Choose a random instance from the database, remove it and return that to the client
+	// Choose a random instance from the database, remove it and return
+	// that to the client.
 	num, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
 	if err != nil {
 		return nil, err
@@ -223,7 +224,7 @@ func createInstance() (*schemas.Instance, error) {
 		return nil, err
 	}
 
-	// Update the status tag for the now-used instance
+	// Update the status tag for the now-used instance.
 	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
 	if err != nil {
 		return nil, err
@@ -233,13 +234,13 @@ func createInstance() (*schemas.Instance, error) {
 }
 
 func deleteInstance(instance *schemas.Instance) error {
-	// Add the instance back to the spare pool in the database
+	// Add the instance back to the spare pool in the database.
 	_, err := db.Put(schemas.InstancesCollection, instance.ID, instance)
 	if err != nil {
 		return err
 	}
 
-	// re-tag the instance 'spare' on EC2
+	// Re-tag the instance 'spare' on EC2.
 	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "spare"})
 	if err != nil {
 		return err
@@ -1394,7 +1395,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get the instance to use from AWS.
-	instance, err := createInstance()
+	instance, err := getInstance()
 	if err != nil {
 		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
 			"status": requests.StatusFailed,
@@ -1414,7 +1415,8 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// In a separate routine, reset the agent, launch the appropriate
-	// container via the Docker remote api, and update Orchestrate with the new information.
+	// container via the Docker remote api, and update Orchestrate with the
+	// new information.
 	if env != "testing" {
 		go func() {
 			// delancey.Create(container)
