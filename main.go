@@ -17,10 +17,10 @@ import (
 )
 
 var (
+	awsC, _     = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 	rollbarC    *rollbar.Client
 	keenC       keen.Client
 	emailClient *email.Client
-	awsC        *aws.Client
 	dir         string
 	staticDir   string
 	db          *gorc.Client
@@ -46,7 +46,6 @@ func main() {
 		orchestrateKey = config.OrchestrateProdKey
 	}
 	db = gorc.NewClient(orchestrateKey)
-	awsC, _ = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 
 	fmt.Println("Firing up Kenmare in", env, "environment...")
 	server := web.NewServer(port, []web.Handler{
