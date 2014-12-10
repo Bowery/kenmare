@@ -50,7 +50,7 @@ var routes = []web.Route{
 	{"PUT", "/environments/{id}/share", shareEnvironmentByIDHandler, false},
 	{"DELETE", "/environments/{id}/share", revokeAcccessToEnvByIDHandler, false},
 	{"POST", "/containers", createContainerHandler, false},
-	{"DELETE", "/containers/:id", deleteContainerByIDHandler, false},
+	{"DELETE", "/containers/{id}", removeContainerByIDHandler, false},
 	{"POST", "/events", createEventHandler, false},
 	{"GET", "/auth/validate-keys", validateKeysHandler, false},
 	{"GET", "/client/check", clientCheckHandler, false},
@@ -1284,10 +1284,29 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
-// deleteContainerByIDHandler terminates a container and sets the instance
+// removeContainerByIDHandler terminates a container and sets the instance
 // as available.
-func deleteContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	// todo(steve).
+func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	containerID := vars["id"]
+
+	container, err := getContainer(containerID)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// todo(steve, larz, mitch):
+	// In separate routines, reset the agent and recycle the instance.
+	if env != "testing" {
+		// go delancey.Reset(container.Address, container.DockerID)
+		// go recycleInstance(container.InstanceID)
+	}
+
+	db.Delete(schemas.ContainersCollection, container.ID)
 	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.StatusRemoved,
 	})
@@ -1665,6 +1684,22 @@ func searchEnvs(query string) ([]schemas.Environment, error) {
 	}
 
 	return envs, nil
+}
+
+// getContainer retrieves a container from Orchestrate.
+func getContainer(id string) (schemas.Container, error) {
+	containerData, err := db.Get(schemas.ContainersCollection, id)
+	if err != nil {
+		return schemas.Container{}, err
+	}
+
+	container := schemas.Container{}
+	err = containerData.Value(&container)
+	if err != nil {
+		return schemas.Container{}, err
+	}
+
+	return container, nil
 }
 
 type developerRes struct {

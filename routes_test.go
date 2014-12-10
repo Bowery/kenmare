@@ -66,7 +66,10 @@ var devs = map[string]*schemas.Developer{
 	},
 }
 
-var createdApp *schemas.Application
+var (
+	createdApp       *schemas.Application
+	createdContainer *schemas.Container
+)
 
 func init() {
 	rollbarC = rollbar.NewClient("", "testing")
@@ -923,6 +926,33 @@ func TestCreateContainerSuccessful(t *testing.T) {
 
 	if resBody.Status != requests.StatusCreated {
 		t.Error("unexpected status returned", resBody.Status)
+	}
+
+	createdContainer = resBody.Container
+}
+
+func TestRemoveContainerSuccessful(t *testing.T) {
+	if createdContainer == nil {
+		t.Skip("Skipping because create failed")
+	}
+
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s", server.URL, createdContainer.ID)
+	req, err := http.NewRequest("DELETE", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Error("unexpected status returned", res.StatusCode)
 	}
 }
 
