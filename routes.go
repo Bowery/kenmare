@@ -1395,15 +1395,17 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get the instance to use from AWS.
-	instance, err := getInstance()
-	if err != nil {
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
+	if env != "testing" {
+		instance, err := getInstance()
+		if err != nil {
+			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+				"status": requests.StatusFailed,
+				"error":  err.Error(),
+			})
+			return
+		}
+		container.Instance = instance
 	}
-	container.Instance = instance
 
 	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
 	if err != nil {
