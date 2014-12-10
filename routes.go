@@ -62,8 +62,6 @@ var routes = []web.Route{
 	{"GET", "/admin/environments/config", adminGetEnvironmentConfigHandler, true},
 	{"GET", "/admin/environments/{id}", adminGetEnvironmentHandler, true},
 	{"POST", "/admin/environments/{id}", adminUpdateEnvironmentHandler, true},
-	{"GET", "/instances", createInstanceHandler, false},
-	{"DELETE", "/instances", deleteInstanceHandler, false},
 }
 
 var renderer = render.New(render.Options{
@@ -124,8 +122,8 @@ type applicationReq struct {
 	RemotePath   string `json:"remotePath"`
 }
 
-// allocateInstances creates instances on EC2, and inserts corresponding
-// records in the instances collection.
+// allocateInstances creates instances on EC2 using the Bowery account,
+// and inserts corresponding records in the instances collection.
 func allocateInstances(num int) error {
 	var err error
 	var wg sync.WaitGroup
@@ -177,16 +175,11 @@ func allocateInstances(num int) error {
 	return err
 }
 
-func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
+func createInstance() (*schemas.Instance, error) {
 	// get list of instances from instance collection
 	results, err := db.Search(schemas.InstancesCollection, "*", 100, 0)
 	if err != nil {
-		rollbarC.Report(err, nil)
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
+		return nil, err
 	}
 	refresh := false
 
@@ -194,12 +187,7 @@ func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 	if results.TotalCount == 0 {
 		err = allocateInstances(20)
 		if err != nil {
-			rollbarC.Report(err, nil)
-			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-				"status": requests.StatusFailed,
-				"error":  err.Error(),
-			})
-			return
+			return nil, err
 		}
 		refresh = true
 	} else if results.TotalCount <= 15 {
@@ -210,12 +198,7 @@ func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 	if refresh {
 		results, err = db.Search(schemas.InstancesCollection, "*", 100, 0)
 		if err != nil {
-			rollbarC.Report(err, nil)
-			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-				"status": requests.StatusFailed,
-				"error":  err.Error(),
-			})
-			return
+			return nil, err
 		}
 	}
 
@@ -224,116 +207,45 @@ func createInstanceHandler(rw http.ResponseWriter, req *http.Request) {
 	for i, result := range results.Results {
 		err := result.Value(&instances[i])
 		if err != nil {
-			rollbarC.Report(err, map[string]interface{}{
-				"instances": instances,
-			})
-			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-				"status": requests.StatusFailed,
-				"error":  err.Error(),
-			})
-			return
+			return nil, err
 		}
 	}
 
 	// Choose a random instance from the database, remove it and return that to the client
 	num, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
 	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"instances": instances,
-		})
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	instance := instances[num.Int64()]
 	err = db.Delete(schemas.InstancesCollection, instance.ID)
 	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"instances": instances,
-			"instance":  instance,
-		})
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
 	// Update the status tag for the now-used instance
 	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
 	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"instances": instances,
-			"instance":  instance,
-		})
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
-		"status":   requests.StatusSuccess,
-		"instance": instance,
-	})
+	return &instance, nil
 }
 
-func deleteInstanceHandler(rw http.ResponseWriter, req *http.Request) {
-	awsClient, err := aws.NewClient(config.S3AccessKey, config.S3SecretKey)
-	if err != nil {
-		rollbarC.Report(err, nil)
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	instance := new(schemas.Instance)
-	decoder := json.NewDecoder(req.Body)
-	err = decoder.Decode(instance)
-	if err != nil {
-		rollbarC.Report(err, nil)
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
-	}
-
+func deleteInstance(instance *schemas.Instance) error {
 	// Add the instance back to the spare pool in the database
-	_, err = db.Put(schemas.InstancesCollection, instance.ID, instance)
+	_, err := db.Put(schemas.InstancesCollection, instance.ID, instance)
 	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"instance": instance,
-		})
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
+		return err
 	}
 
 	// re-tag the instance 'spare' on EC2
-	err = awsClient.TagInstance(instance.InstanceID, map[string]string{"status": "spare"})
+	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "spare"})
 	if err != nil {
-		rollbarC.Report(err, map[string]interface{}{
-			"instance": instance,
-		})
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
+		return err
 	}
 
-	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
-		"status": requests.StatusSuccess,
-	})
+	return nil
 }
 
 // createEnvironmentHandler creates a new environment
@@ -1481,6 +1393,17 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		CreatedAt: time.Now(),
 	}
 
+	// Get the instance to use from AWS.
+	instance, err := createInstance()
+	if err != nil {
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+	container.Instance = instance
+
 	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
 	if err != nil {
 		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
@@ -1490,12 +1413,12 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// In a separate routine, select an instance from the pool, reset
-	// the agent, launch the appropriate container via the Docker
-	// remote api, and update Orchestrate with the new information.
+	// In a separate routine, reset the agent, launch the appropriate
+	// container via the Docker remote api, and update Orchestrate with the new information.
 	if env != "testing" {
 		go func() {
-			// todo
+			// delancey.Create(container)
+			// db.Put container with docker id
 		}()
 	}
 
@@ -1523,8 +1446,13 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// todo(steve, larz, mitch):
 	// In separate routines, reset the agent and recycle the instance.
 	if env != "testing" {
-		// go delancey.Reset(container.Address, container.DockerID)
-		// go recycleInstance(container.InstanceID)
+		go func() {
+			// delancey.Reset(container.Address, container.DockerID)
+			err := deleteInstance(container.Instance)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}()
 	}
 
 	db.Delete(schemas.ContainersCollection, container.ID)
