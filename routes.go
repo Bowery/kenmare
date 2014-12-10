@@ -4,10 +4,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"net/mail"
@@ -69,6 +71,11 @@ var renderer = render.New(render.Options{
 
 var baseEnvID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
 
+// Minimum number of instances to have in the spare pool
+const (
+	InstancePoolMin = 20
+)
+
 func authHandler(req *http.Request, user, pass string) (bool, error) {
 	var body bytes.Buffer
 	bodyReq := &requests.LoginReq{Email: user, Password: pass}
@@ -113,6 +120,133 @@ type applicationReq struct {
 	Init         string `json:"init"`
 	LocalPath    string `json:"localPath"`
 	RemotePath   string `json:"remotePath"`
+}
+
+// allocateInstances creates instances on EC2 using the Bowery account,
+// and inserts corresponding records in the instances collection.
+func allocateInstances(num int) error {
+	var err error
+	var wg sync.WaitGroup
+
+	// Create instances in parallel
+	for i := 0; i < num; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			instance := &schemas.Instance{
+				ID: uuid.New(),
+			}
+
+			fmt.Println("Creating instance", instance.ID)
+			instanceID, e := awsC.CreateInstance(aws.DefaultAMI, aws.DefaultInstanceType, instance.ID, []int{}, false)
+			if e != nil {
+				err = e
+				return
+			}
+
+			addr, e := awsC.CheckInstance(instanceID)
+			if e != nil {
+				err = e
+				return
+			}
+
+			// Add the status tag for the new instance
+			e = awsC.TagInstance(instanceID, map[string]string{"status": "spare"})
+			if e != nil {
+				err = e
+				return
+			}
+
+			instance.InstanceID = instanceID
+			instance.Address = addr
+			instance.AMI = aws.DefaultAMI
+
+			_, e = db.Put(schemas.InstancesCollection, instance.ID, instance)
+			if e != nil {
+				err = e
+				return
+			}
+		}()
+	}
+
+	// Wait for all instances to be created and database is current
+	wg.Wait()
+	return err
+}
+
+func getInstance() (*schemas.Instance, error) {
+	// Get list of instances from instance collection.
+	results, err := db.Search(schemas.InstancesCollection, "*", 100, 0)
+	if err != nil {
+		return nil, err
+	}
+	refresh := false
+
+	// Check total for need to add to the pool.
+	if results.TotalCount == 0 {
+		err = allocateInstances(20)
+		if err != nil {
+			return nil, err
+		}
+		refresh = true
+	} else if results.TotalCount <= 15 {
+		go allocateInstances(20)
+		refresh = true
+	}
+
+	if refresh {
+		results, err = db.Search(schemas.InstancesCollection, "*", 100, 0)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Fetch a current list of instances from the database.
+	instances := make([]schemas.Instance, results.Count)
+	for i, result := range results.Results {
+		err := result.Value(&instances[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Choose a random instance from the database, remove it and return
+	// that to the client.
+	num, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
+	if err != nil {
+		return nil, err
+	}
+
+	instance := instances[num.Int64()]
+	err = db.Delete(schemas.InstancesCollection, instance.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the status tag for the now-used instance.
+	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
+	if err != nil {
+		return nil, err
+	}
+
+	return &instance, nil
+}
+
+func deleteInstance(instance *schemas.Instance) error {
+	// Add the instance back to the spare pool in the database.
+	_, err := db.Put(schemas.InstancesCollection, instance.ID, instance)
+	if err != nil {
+		return err
+	}
+
+	// Re-tag the instance 'spare' on EC2.
+	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "spare"})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // createEnvironmentHandler creates a new environment
@@ -1260,6 +1394,19 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		CreatedAt: time.Now(),
 	}
 
+	// Get the instance to use from AWS.
+	if env != "testing" {
+		instance, err := getInstance()
+		if err != nil {
+			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+				"status": requests.StatusFailed,
+				"error":  err.Error(),
+			})
+			return
+		}
+		container.Instance = instance
+	}
+
 	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
 	if err != nil {
 		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
@@ -1269,12 +1416,13 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// In a separate routine, select an instance from the pool, reset
-	// the agent, launch the appropriate container via the Docker
-	// remote api, and update Orchestrate with the new information.
+	// In a separate routine, reset the agent, launch the appropriate
+	// container via the Docker remote api, and update Orchestrate with the
+	// new information.
 	if env != "testing" {
 		go func() {
-			// todo
+			// delancey.Create(container)
+			// db.Put container with docker id
 		}()
 	}
 
@@ -1302,8 +1450,13 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// todo(steve, larz, mitch):
 	// In separate routines, reset the agent and recycle the instance.
 	if env != "testing" {
-		// go delancey.Reset(container.Address, container.DockerID)
-		// go recycleInstance(container.InstanceID)
+		go func() {
+			// delancey.Reset(container.Address, container.DockerID)
+			err := deleteInstance(container.Instance)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}()
 	}
 
 	db.Delete(schemas.ContainersCollection, container.ID)
