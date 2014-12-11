@@ -691,64 +691,6 @@ func TestRemoveApplicationBadToken(t *testing.T) {
 	}
 }
 
-// func TestRemoveApplicationBadID(t *testing.T) {
-// 	server := startServer()
-// 	defer server.Close()
-// 	defer startBroome().Close()
-
-// 	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=" + devs["apps"].Token
-// 	req, err := http.NewRequest("DELETE", server.URL+"/applications/randomid"+query, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	res, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	defer res.Body.Close()
-
-// 	resp := new(applicationRes)
-// 	decoder := json.NewDecoder(res.Body)
-// 	err = decoder.Decode(&resp)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	if resp.Status != requests.StatusFailed {
-// 		t.Error("Reponse succeeded but should have failed")
-// 	}
-// }
-
-// func TestRemoveApplicationUnauthorized(t *testing.T) {
-// 	server := startServer()
-// 	defer server.Close()
-// 	defer startBroome().Close()
-
-// 	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=" + devs["noapps"].Token
-// 	req, err := http.NewRequest("DELETE", server.URL+"/applications/"+createdApp.ID+query, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	res, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	defer res.Body.Close()
-
-// 	resp := new(applicationRes)
-// 	decoder := json.NewDecoder(res.Body)
-// 	err = decoder.Decode(&resp)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	if resp.Status != requests.StatusFailed {
-// 		t.Error("Reponse succeeded but should have failed")
-// 	}
-// }
-
 func TestRemoveApplicationAdmin(t *testing.T) {
 	server := startServer()
 	defer server.Close()
@@ -952,6 +894,27 @@ func TestRemoveContainerSuccessful(t *testing.T) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		t.Error("unexpected status returned", res.StatusCode)
+	}
+}
+
+func TestRemoveContainerBadRequest(t *testing.T) {
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s", server.URL, "random-id")
+	req, err := http.NewRequest("DELETE", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusBadRequest {
 		t.Error("unexpected status returned", res.StatusCode)
 	}
 }
