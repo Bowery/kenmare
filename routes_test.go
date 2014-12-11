@@ -956,6 +956,27 @@ func TestRemoveContainerSuccessful(t *testing.T) {
 	}
 }
 
+func TestRemoveContainerBadRequest(t *testing.T) {
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s", server.URL, "random-id")
+	req, err := http.NewRequest("DELETE", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusBadRequest {
+		t.Error("unexpected status returned", res.StatusCode)
+	}
+}
+
 // Start a server passing the request through mux for route processing.
 func startServer() *httptest.Server {
 	router := mux.NewRouter()
