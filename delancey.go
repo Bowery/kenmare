@@ -32,7 +32,7 @@ func DelanceyExec(app schemas.Application, cmds []string) error {
 		return err
 	}
 
-	url := net.JoinHostPort(app.Location, config.BoweryAgentProdSyncPort)
+	url := net.JoinHostPort(app.Location, config.DelanceyProdPort)
 	res, err := http.Post(fmt.Sprintf("http://%s/commands", url), "application/json", &body)
 	if err != nil {
 		return err

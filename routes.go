@@ -547,7 +547,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 			<-time.After(backoff.Delay)
 			log.Println("checking agent availability")
-			url := net.JoinHostPort(addr, config.BoweryAgentProdSyncPort)
+			url := net.JoinHostPort(addr, config.DelanceyProdPort)
 			res, err := http.Get(fmt.Sprintf("http://%s", url))
 			if err != nil {
 				continue
