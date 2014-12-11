@@ -1453,11 +1453,13 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		go func() {
 			err := delancey.Delete(container)
 			if err != nil {
+				// todo(steve, larz, mitch): handle error
 				fmt.Println(err)
 			}
 
 			err = deleteInstance(container.Instance)
 			if err != nil {
+				// todo(steve, larz, mitch): handle error
 				fmt.Println(err)
 			}
 		}()
