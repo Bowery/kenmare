@@ -691,64 +691,6 @@ func TestRemoveApplicationBadToken(t *testing.T) {
 	}
 }
 
-// func TestRemoveApplicationBadID(t *testing.T) {
-// 	server := startServer()
-// 	defer server.Close()
-// 	defer startBroome().Close()
-
-// 	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=" + devs["apps"].Token
-// 	req, err := http.NewRequest("DELETE", server.URL+"/applications/randomid"+query, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	res, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	defer res.Body.Close()
-
-// 	resp := new(applicationRes)
-// 	decoder := json.NewDecoder(res.Body)
-// 	err = decoder.Decode(&resp)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	if resp.Status != requests.StatusFailed {
-// 		t.Error("Reponse succeeded but should have failed")
-// 	}
-// }
-
-// func TestRemoveApplicationUnauthorized(t *testing.T) {
-// 	server := startServer()
-// 	defer server.Close()
-// 	defer startBroome().Close()
-
-// 	query := "?aws_access_key=someaccess&aws_secret_key=somesecret&token=" + devs["noapps"].Token
-// 	req, err := http.NewRequest("DELETE", server.URL+"/applications/"+createdApp.ID+query, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	res, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	defer res.Body.Close()
-
-// 	resp := new(applicationRes)
-// 	decoder := json.NewDecoder(res.Body)
-// 	err = decoder.Decode(&resp)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	if resp.Status != requests.StatusFailed {
-// 		t.Error("Reponse succeeded but should have failed")
-// 	}
-// }
-
 func TestRemoveApplicationAdmin(t *testing.T) {
 	server := startServer()
 	defer server.Close()
