@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
+	"github.com/Bowery/delancey/delancey"
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
@@ -1394,8 +1395,8 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		CreatedAt: time.Now(),
 	}
 
-	// Get the instance to use from AWS.
 	if env != "testing" {
+		// Get the instance to use from AWS.
 		instance, err := getInstance()
 		if err != nil {
 			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
@@ -1405,6 +1406,16 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 		container.Instance = instance
+
+		// Send the instance information to Delancey to fire up container
+		err = delancey.Create(container)
+		if err != nil {
+			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+				"status": requests.StatusFailed,
+				"error":  err.Error(),
+			})
+			return
+		}
 	}
 
 	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
@@ -1414,16 +1425,6 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			"error":  err.Error(),
 		})
 		return
-	}
-
-	// In a separate routine, reset the agent, launch the appropriate
-	// container via the Docker remote api, and update Orchestrate with the
-	// new information.
-	if env != "testing" {
-		go func() {
-			// delancey.Create(container)
-			// db.Put container with docker id
-		}()
 	}
 
 	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
@@ -1447,12 +1448,15 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// todo(steve, larz, mitch):
 	// In separate routines, reset the agent and recycle the instance.
 	if env != "testing" {
 		go func() {
-			// delancey.Reset(container.Address, container.DockerID)
-			err := deleteInstance(container.Instance)
+			err := delancey.Delete(container)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			err = deleteInstance(container.Instance)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -1840,16 +1844,16 @@ func searchEnvs(query string) ([]schemas.Environment, error) {
 }
 
 // getContainer retrieves a container from Orchestrate.
-func getContainer(id string) (schemas.Container, error) {
+func getContainer(id string) (*schemas.Container, error) {
 	containerData, err := db.Get(schemas.ContainersCollection, id)
 	if err != nil {
-		return schemas.Container{}, err
+		return nil, err
 	}
 
-	container := schemas.Container{}
-	err = containerData.Value(&container)
+	container := new(schemas.Container)
+	err = containerData.Value(container)
 	if err != nil {
-		return schemas.Container{}, err
+		return nil, err
 	}
 
 	return container, nil
