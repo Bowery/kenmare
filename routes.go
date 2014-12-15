@@ -1425,6 +1425,11 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		go func() {
 			delancey.Create(container)
 			db.Put(schemas.ContainersCollection, container.ID, container)
+
+			data, err := json.Marshal(container)
+			if err != nil {
+				pusherC.Publish(string(data), "update", fmt.Sprintf("container-%s", container.ID))
+			}
 		}()
 	}
 

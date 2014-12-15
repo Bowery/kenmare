@@ -14,12 +14,14 @@ import (
 	"github.com/Bowery/gopackages/rollbar"
 	"github.com/Bowery/gopackages/web"
 	"github.com/orchestrate-io/gorc"
+	"github.com/timonv/pusher"
 )
 
 var (
 	awsC, _     = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 	rollbarC    *rollbar.Client
 	keenC       keen.Client
+	pusherC     *pusher.Client
 	emailClient *email.Client
 	dir         string
 	staticDir   string
@@ -38,6 +40,7 @@ func main() {
 		WriteKey:  config.KeenWriteKey,
 		ProjectID: config.KeenProjectID,
 	}
+	pusherC = pusher.NewClient(config.PusherAppID, config.PusherKey, config.PusherSecret)
 	emailClient = email.NewClient()
 	dir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	staticDir = filepath.Join(dir, "static")
