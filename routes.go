@@ -1414,6 +1414,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 		container.Instance = instance
+		container.Address = instance.Address
 	}
 
 	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
@@ -1430,12 +1431,26 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	// new information.
 	if env != "testing" {
 		go func() {
-			delancey.Create(container)
-			db.Put(schemas.ContainersCollection, container.ID, container)
+			err := delancey.Create(container)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			_, err = db.Put(schemas.ContainersCollection, container.ID, container)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
 			data, err := json.Marshal(container)
-			if err != nil {
-				pusherC.Publish(string(data), "update", fmt.Sprintf("container-%s", container.ID))
+			if err == nil {
+				err = pusherC.Publish(string(data), "update", fmt.Sprintf("container-%s", container.ID))
+				if err != nil {
+					log.Println(err)
+				}
+			} else {
+				log.Println(err)
 			}
 		}()
 	}
