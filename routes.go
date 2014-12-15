@@ -55,6 +55,7 @@ var routes = []web.Route{
 	{"POST", "/containers", createContainerHandler, false},
 	{"GET", "/containers/{id}", getContainerByIDHandler, false},
 	{"DELETE", "/containers/{id}", removeContainerByIDHandler, false},
+	{"PUT", "/images/{id}", updateImageByIDHandler, false},
 	{"POST", "/events", createEventHandler, false},
 	{"GET", "/auth/validate-keys", validateKeysHandler, false},
 	{"GET", "/client/check", clientCheckHandler, false},
@@ -1509,6 +1510,34 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// updateImageByIDHandler updates an image by the provided image id.
+// It notifies all clients who subscribes to container channels
+// based on this image.
+func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	imageID := vars["id"]
+
+	query := fmt.Sprintf("imageID:\"%s\"", imageID)
+	containers, err := searchContainers(query)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	if env != "testing" {
+		for _, container := range containers {
+			go pusherC.Publish("updated", "update", fmt.Sprintf("container-%s", container.ID))
+		}
+	}
+
+	renderer.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.StatusUpdated,
+	})
+}
+
 type createEventReq struct {
 	Type  string `json:"type"`
 	Body  string `json:"body"`
@@ -1821,6 +1850,43 @@ func getContainer(id string) (schemas.Container, error) {
 	}
 
 	return container, nil
+}
+
+func searchContainers(query string) ([]schemas.Container, error) {
+	var containers []schemas.Container
+	filter := func(list []gorc.SearchResult) error {
+		var container schemas.Container
+
+		for _, result := range list {
+			err := result.Value(&container)
+			if err != nil {
+				return err
+			}
+
+			containers = append(containers, container)
+		}
+
+		return nil
+	}
+
+	containersData, err := db.Search(schemas.ContainersCollection, query, 100, 0)
+	if err == nil {
+		err = filter(containersData.Results)
+	} else {
+		return []schemas.Container{}, err
+	}
+
+	for containersData.HasNext() {
+		containersData, err = db.SearchGetNext(containersData)
+		if err == nil {
+			err = filter(containersData.Results)
+		}
+		if err != nil {
+			return []schemas.Container{}, err
+		}
+	}
+
+	return containers, nil
 }
 
 type developerRes struct {

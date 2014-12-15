@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	testImageID = "123"
-	renderer    = render.New(render.Options{
+	testImageID     = "123"
+	testContainerID = "456"
+	renderer        = render.New(render.Options{
 		IndentJSON:    true,
 		IsDevelopment: true,
 	})
@@ -44,7 +45,7 @@ func TestDeleteContainerSuccess(t *testing.T) {
 	defer server.Close()
 	config.KenmareAddr = server.URL
 
-	err := DeleteContainer(testImageID)
+	err := DeleteContainer(testContainerID)
 	if err != nil {
 		t.Error(err)
 	}
@@ -53,5 +54,22 @@ func TestDeleteContainerSuccess(t *testing.T) {
 func testDeleteContainerHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
 	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.StatusRemoved,
+	})
+}
+
+func TestUpdateImageSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(testUpdateImageHandlerSuccess))
+	defer server.Close()
+	config.KenmareAddr = server.URL
+
+	err := UpdateImage(testContainerID)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func testUpdateImageHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
+	renderer.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.StatusUpdated,
 	})
 }
