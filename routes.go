@@ -71,7 +71,8 @@ var baseEnvID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
 
 var userData = []byte(`#!/bin/bash
 apt-get update
-apt-get install -y docker.io git-core vim
+apt-get install -y git-core vim
+curl -sSL https://get.docker.com/ubuntu/ | sh
 wget http://bowery.sh/bowery-agent
 chmod +x bowery-agent
 ./bowery-agent &> /home/ubuntu/bowery-agent-debug.log`)
