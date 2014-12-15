@@ -59,11 +59,6 @@ var routes = []web.Route{
 	{"GET", "/auth/validate-keys", validateKeysHandler, false},
 	{"GET", "/client/check", clientCheckHandler, false},
 	{"GET", "/_/stats/instance-count", getInstanceCountHandler, false},
-	{"GET", "/admin", adminHomeHandler, true},
-	{"GET", "/admin/environments", adminSearchHandler, true},
-	{"GET", "/admin/environments/config", adminGetEnvironmentConfigHandler, true},
-	{"GET", "/admin/environments/{id}", adminGetEnvironmentHandler, true},
-	{"POST", "/admin/environments/{id}", adminUpdateEnvironmentHandler, true},
 }
 
 var renderer = render.New(render.Options{
@@ -1682,82 +1677,6 @@ func getInstanceCountHandler(rw http.ResponseWriter, req *http.Request) {
 				"text":  "Instance Count",
 			},
 		},
-	})
-}
-
-// adminHomeHandler
-func adminHomeHandler(rw http.ResponseWriter, req *http.Request) {
-	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "index.tmpl"), map[string]interface{}{})
-}
-
-// adminSearchHandler
-func adminSearchHandler(rw http.ResponseWriter, req *http.Request) {
-	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "search.tmpl"), map[string]interface{}{})
-}
-
-// adminGetEnvironmentConfigHandler
-func adminGetEnvironmentConfigHandler(rw http.ResponseWriter, req *http.Request) {
-	env, err := getEnv(baseEnvID)
-	if err != nil {
-		web.RenderHTML(rw, filepath.Join(staticDir, "admin", "error.tmpl"), map[string]interface{}{})
-		return
-	}
-
-	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "config.tmpl"), map[string]interface{}{
-		"Environment": env,
-	})
-}
-
-// adminEnvironmentHandler
-func adminGetEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	id := vars["id"]
-
-	env, err := getEnv(id)
-	if err != nil {
-		web.RenderHTML(rw, filepath.Join(staticDir, "admin", "error.tmpl"), map[string]interface{}{})
-		return
-	}
-
-	web.RenderHTML(rw, filepath.Join(staticDir, "admin", "environment.tmpl"), map[string]interface{}{
-		"Environment": env,
-	})
-}
-
-// adminUpdateEnvironmentHandler
-func adminUpdateEnvironmentHandler(rw http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	id := vars["id"]
-
-	var body updateEnvReq
-	decoder := json.NewDecoder(req.Body)
-	err := decoder.Decode(&body)
-	if err != nil {
-		rollbarC.Report(err, nil)
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	env, err := getEnv(id)
-	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	env.Name = body.Name
-	env.Description = body.Description
-	env.DeveloperID = body.DeveloperID
-	env.AMI = body.AMI
-
-	_, err = db.Put(schemas.EnvironmentsCollection, env.ID, env)
-	renderer.JSON(rw, http.StatusOK, map[string]string{
-		"status": requests.StatusSuccess,
 	})
 }
 
