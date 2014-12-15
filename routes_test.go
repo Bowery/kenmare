@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"log"
+
 	"labix.org/v2/mgo/bson"
 
 	"github.com/Bowery/gopackages/config"
@@ -871,6 +873,28 @@ func TestCreateContainerSuccessful(t *testing.T) {
 	}
 
 	createdContainer = resBody.Container
+}
+
+func TestGetContainerSuccessful(t *testing.T) {
+	if createdContainer == nil {
+		t.Skip("Skipping because create failed")
+	}
+
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s", server.URL, createdContainer.ID)
+	log.Println(addr)
+	res, err := http.Get(addr)
+	if err != nil {
+		t.Error(err)
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Error("unexpected status returned", res.StatusCode)
+	}
 }
 
 func TestRemoveContainerSuccessful(t *testing.T) {

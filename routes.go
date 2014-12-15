@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
+	"github.com/Bowery/delancey/delancey"
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
@@ -52,7 +53,7 @@ var routes = []web.Route{
 	{"PUT", "/environments/{id}/share", shareEnvironmentByIDHandler, false},
 	{"DELETE", "/environments/{id}/share", revokeAcccessToEnvByIDHandler, false},
 	{"POST", "/containers", createContainerHandler, false},
-	{"GET", "/container/{id}", getContainerByIDHandler, false},
+	{"GET", "/containers/{id}", getContainerByIDHandler, false},
 	{"DELETE", "/containers/{id}", removeContainerByIDHandler, false},
 	{"POST", "/events", createEventHandler, false},
 	{"GET", "/auth/validate-keys", validateKeysHandler, false},
@@ -1422,8 +1423,8 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	// new information.
 	if env != "testing" {
 		go func() {
-			// delancey.Create(container)
-			// db.Put container with docker id
+			delancey.Create(container)
+			db.Put(schemas.ContainersCollection, container.ID, container)
 		}()
 	}
 
