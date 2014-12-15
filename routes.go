@@ -73,6 +73,13 @@ var renderer = render.New(render.Options{
 
 var baseEnvID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
 
+var userData = []byte(`#!/bin/bash
+apt-get update
+apt-get install -y docker.io git-core vim
+wget http://bowery.sh/bowery-agent
+chmod +x bowery-agent
+./bowery-agent &> /home/ubuntu/bowery-agent-debug.log`)
+
 // Minimum number of instances to have in the spare pool
 const (
 	InstancePoolMin = 20
@@ -141,7 +148,7 @@ func allocateInstances(num int) error {
 			}
 
 			fmt.Println("Creating instance", instance.ID)
-			instanceID, e := awsC.CreateInstance(aws.DefaultAMI, aws.DefaultInstanceType, instance.ID, []int{}, false)
+			instanceID, e := awsC.CreateInstance("ami-9eaa1cf6", aws.DefaultInstanceType, instance.ID, []int{}, true, userData)
 			if e != nil {
 				err = e
 				return
@@ -478,7 +485,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 		// Create instance.
 		log.Println("creating instance")
-		instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList, !hostedByBowery)
+		instanceID, err := awsClient.CreateInstance(sourceEnv.AMI, instanceType, appID, portsList, !hostedByBowery, nil)
 		if err != nil {
 			currentApp.Status = "error"
 			appError := &schemas.Error{
