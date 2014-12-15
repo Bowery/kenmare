@@ -47,8 +47,12 @@ func CreateContainer(imageID string) (*schemas.Container, error) {
 }
 
 // DeleteContainer requests kenmare to delete a container.
-func DeleteContainer(containerID string) error {
+func DeleteContainer(containerID string, commit bool) error {
 	addr := fmt.Sprintf("%s/containers/%s", config.KenmareAddr, containerID)
+	if !commit {
+		addr += "?skip=true"
+	}
+
 	req, err := http.NewRequest("DELETE", addr, nil)
 	if err != nil {
 		return err

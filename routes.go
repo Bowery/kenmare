@@ -1482,6 +1482,7 @@ func getContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	containerID := vars["id"]
+	skipDelanceyCommit := req.FormValue("skip") != ""
 
 	container, err := getContainer(containerID)
 	if err != nil {
@@ -1492,13 +1493,19 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// todo(steve, larz, mitch):
 	// In separate routines, reset the agent and recycle the instance.
 	if env != "testing" {
 		go func() {
-			// delancey.Reset(container.Address, container.DockerID)
-			err := deleteInstance(container.Instance)
+			err := delancey.Delete(&container, skipDelanceyCommit)
 			if err != nil {
+				// TODO: handle error
+				fmt.Println(err)
+				return
+			}
+
+			err = deleteInstance(container.Instance)
+			if err != nil {
+				// TODO: handle error
 				fmt.Println(err)
 			}
 		}()
