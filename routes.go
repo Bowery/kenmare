@@ -244,10 +244,12 @@ func getInstance() (*schemas.Instance, error) {
 	}
 
 	// Update the status tag for the now-used instance.
-	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
 	elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
 	go stathat.PostEZValue("kenmare get instance from pool time", config.StatHatKey, elapsed)
 	return &instance, nil
@@ -1446,7 +1448,6 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	// container via the Docker remote api, and update Orchestrate with the
 	// new information.
 	if env != "testing" {
-		delanceystart := time.Now()
 		go func() {
 			start := time.Now()
 			err := delancey.Create(container)
@@ -1479,8 +1480,6 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
 			go stathat.PostEZValue("kenmare delancey update pubsub request time", config.StatHatKey, elapsed)
 		}()
-		elapsed := float64(time.Since(delanceystart).Nanoseconds() / 1000000)
-		go stathat.PostEZValue("kenmare delancey create container overall time", config.StatHatKey, elapsed)
 	}
 
 	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
