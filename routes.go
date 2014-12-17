@@ -1530,21 +1530,25 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" {
 		go func() {
 			start := time.Now()
+			log.Println("calling delancey delete")
 			err := delancey.Delete(&container, skipDelanceyCommit)
 			if err != nil {
 				// TODO: handle error
 				fmt.Println(err)
 				return
 			}
+			log.Println("successfully deleted")
 			elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
 			go stathat.PostEZValue("kenmare remove container by id delancey request time", config.StatHatKey, elapsed)
 
 			start = time.Now()
+			log.Println("calling delete instance")
 			err = deleteInstance(container.Instance)
 			if err != nil {
 				// TODO: handle error
 				fmt.Println(err)
 			}
+			log.Println("successfully deleted")
 			elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
 			go stathat.PostEZValue("kenmare remove container by id delete instance time", config.StatHatKey, elapsed)
 		}()
