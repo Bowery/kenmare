@@ -249,6 +249,7 @@ func getInstance() (*schemas.Instance, error) {
 		if err != nil {
 			fmt.Println(err)
 		}
+		return
 	}()
 	elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
 	go stathat.PostEZValue("kenmare get instance from pool time", config.StatHatKey, elapsed)
