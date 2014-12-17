@@ -244,10 +244,12 @@ func getInstance() (*schemas.Instance, error) {
 	}
 
 	// Update the status tag for the now-used instance.
-	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
 	elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
 	go stathat.PostEZValue("kenmare get instance from pool time", config.StatHatKey, elapsed)
 	return &instance, nil
