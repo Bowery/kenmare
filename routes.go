@@ -137,10 +137,11 @@ func allocateInstances(num int) error {
 	// Create instances in parallel
 	batchstart := time.Now()
 	for i := 0; i < num; i++ {
-		instancestart := time.Now()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
+			instancestart := time.Now()
 
 			instance := &schemas.Instance{
 				ID: uuid.New(),
