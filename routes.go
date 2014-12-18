@@ -1425,7 +1425,9 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	// Get the instance to use from AWS.
 	if env != "testing" {
 		start := time.Now()
+		go pusherC.Publish("instance:0", "progress", fmt.Sprintf("container-%s", container.ID))
 		instance, err := getInstance()
+		go pusherC.Publish("instance:1", "progress", fmt.Sprintf("container-%s", container.ID))
 		if err != nil {
 			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
 				"status": requests.StatusFailed,
@@ -1454,11 +1456,13 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" {
 		go func() {
 			start := time.Now()
+			go pusherC.Publish("container:0", "progress", fmt.Sprintf("container-%s", container.ID))
 			err := delancey.Create(container)
 			if err != nil {
 				log.Println(err)
 				return
 			}
+			go pusherC.Publish("container:1", "progress", fmt.Sprintf("container-%s", container.ID))
 			elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
 			go stathat.PostEZValue("kenmare delancey create container time", config.StatHatKey, elapsed)
 
