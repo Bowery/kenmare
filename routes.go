@@ -73,7 +73,7 @@ var userData = []byte(`#!/bin/bash
 apt-get update
 apt-get install -y git-core vim
 curl -sSL https://get.docker.com/ubuntu/ | sh
-apt-get isntall -y linux-image-extra-$(uname -r)
+apt-get install -y linux-image-extra-$(uname -r)
 restart docker
 wget http://bowery.sh/bowery-agent
 chmod +x bowery-agent
