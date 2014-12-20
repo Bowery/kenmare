@@ -50,7 +50,7 @@ func CreateContainer(imageID string) (*schemas.Container, error) {
 func DeleteContainer(containerID string, commit bool) error {
 	addr := fmt.Sprintf("%s/containers/%s", config.KenmareAddr, containerID)
 	if !commit {
-		addr += "?skip=true"
+		addr += "?commit=false"
 	}
 
 	req, err := http.NewRequest("DELETE", addr, nil)
