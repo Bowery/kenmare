@@ -14,10 +14,11 @@ import (
 )
 
 // CreateContainer requests kenmare to create a new container.
-func CreateContainer(imageID string) (*schemas.Container, error) {
+func CreateContainer(imageID, localPath string) (*schemas.Container, error) {
 	var data bytes.Buffer
 	reqBody := requests.ContainerReq{
-		ImageID: imageID,
+		ImageID:   imageID,
+		LocalPath: localPath,
 	}
 	encoder := json.NewEncoder(&data)
 	err := encoder.Encode(reqBody)
