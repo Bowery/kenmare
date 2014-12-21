@@ -1419,6 +1419,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	container := &schemas.Container{
 		ID:        uuid.New(),
 		ImageID:   imageID,
+		LocalPath: body.LocalPath,
 		CreatedAt: time.Now(),
 	}
 

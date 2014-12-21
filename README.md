@@ -44,7 +44,7 @@ import (
 )
 
 func main() {
-  container, err := kenmare.CreateContainer("some-image-id")
+  container, err := kenmare.CreateContainer("some-image-id", "/Users/chiefkeef/dev/website")
   if err != nil {
     t.Fatal(err)
   }

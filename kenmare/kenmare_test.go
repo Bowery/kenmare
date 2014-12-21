@@ -27,7 +27,7 @@ func TestCreateContainerSuccess(t *testing.T) {
 	defer server.Close()
 	config.KenmareAddr = server.URL
 
-	_, err := CreateContainer(testImageID)
+	_, err := CreateContainer(testImageID, "/Users/chiefkeef/dev/website")
 	if err != nil {
 		t.Error(err)
 	}
