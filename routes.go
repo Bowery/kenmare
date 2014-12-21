@@ -1521,7 +1521,7 @@ func getContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	containerID := vars["id"]
-	// skipDelanceyCommit := req.FormValue("skip") != ""
+	commit := req.FormValue("commit") != "false"
 
 	removestart := time.Now()
 	container, err := getContainer(containerID)
@@ -1538,8 +1538,7 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		go func() {
 			start := time.Now()
 			log.Println("calling delancey delete")
-			// todo(steve, larz): not hard code this.
-			err := delancey.Delete(&container, false)
+			err := delancey.Delete(&container, commit)
 			if err != nil {
 				// TODO: handle error
 				fmt.Println(err)
