@@ -193,26 +193,26 @@ func allocateInstances(num int) error {
 func getInstance() (*schemas.Instance, error) {
 	// Get list of instances from instance collection.
 	start := time.Now()
-	results, err := db.Search(schemas.InstancesCollection, "*", 100, 0)
+	results, totalCount, err := search(schemas.InstancesCollection, "*", true)
 	if err != nil {
 		return nil, err
 	}
 	refresh := false
 
 	// Check total for need to add to the pool.
-	if results.TotalCount == 0 {
+	if totalCount == 0 {
 		err = allocateInstances(20)
 		if err != nil {
 			return nil, err
 		}
 		refresh = true
-	} else if results.TotalCount <= 15 {
+	} else if totalCount <= 15 {
 		go allocateInstances(20)
 		refresh = true
 	}
 
 	if refresh {
-		results, err = db.Search(schemas.InstancesCollection, "*", 100, 0)
+		results, _, err = search(schemas.InstancesCollection, "*", true)
 		if err != nil {
 			return nil, err
 		}
@@ -222,8 +222,8 @@ func getInstance() (*schemas.Instance, error) {
 
 	// Fetch a current list of instances from the database.
 	start = time.Now()
-	instances := make([]schemas.Instance, results.Count)
-	for i, result := range results.Results {
+	instances := make([]schemas.Instance, len(results))
+	for i, result := range results {
 		err := result.Value(&instances[i])
 		if err != nil {
 			return nil, err
@@ -645,7 +645,7 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	query := fmt.Sprintf(`developerId:"%s"`, dev.ID.Hex())
-	appsData, err := db.Search(schemas.ApplicationsCollection, query, 100, 0)
+	results, _, err := search(schemas.ApplicationsCollection, query, true)
 	if err != nil {
 		rollbarC.Report(err, map[string]interface{}{
 			"dev": dev,
@@ -657,8 +657,8 @@ func getApplicationsHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	apps := make([]schemas.Application, len(appsData.Results))
-	for i, a := range appsData.Results {
+	apps := make([]schemas.Application, len(results))
+	for i, a := range results {
 		if err := a.Value(&apps[i]); err != nil {
 			rollbarC.Report(err, map[string]interface{}{
 				"dev": dev,
@@ -1570,27 +1570,72 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	go stathat.PostEZValue("kenmare remove container by id request time", config.StatHatKey, elapsed)
 }
 
-// updateImageByIDHandler updates an image by the provided image id.
-// It notifies all clients who subscribes to container channels
-// based on this image.
+// updateImageByIDHandler notifies clients using the image id that there's been
+// an update, and tells all Delancey instances to pull the image down.
 func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	// This route can't do anything in the test env.
+	if env == "testing" {
+		renderer.JSON(rw, http.StatusOK, map[string]string{
+			"status": requests.StatusUpdated,
+		})
+		return
+	}
 	vars := mux.Vars(req)
 	imageID := vars["id"]
 
-	query := fmt.Sprintf("imageID:\"%s\"", imageID)
-	containers, err := searchContainers(query)
+	// Get all containers here to publish ones with matching image ids, and later
+	// to get running instances.
+	containers, err := searchContainers("*")
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
 			"status": requests.StatusFailed,
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	if env != "testing" {
-		for _, container := range containers {
+	for _, container := range containers {
+		if container.ImageID == imageID {
 			go pusherC.Publish("updated", "update", fmt.Sprintf("container-%s", container.ID))
 		}
+	}
+
+	instances, err := searchInstances("*")
+	if err != nil {
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	for _, container := range containers {
+		instances = append(instances, *container.Instance)
+	}
+	var wg sync.WaitGroup
+	var m sync.Mutex
+
+	for _, instance := range instances {
+		wg.Add(1)
+		go func(inst schemas.Instance) {
+			defer wg.Done()
+
+			e := delancey.PullImage(inst.Address, imageID)
+			if e != nil {
+				m.Lock()
+				err = e
+				m.Unlock()
+			}
+		}(instance)
+	}
+
+	wg.Wait()
+	if err != nil {
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
 	}
 
 	renderer.JSON(rw, http.StatusOK, map[string]string{
@@ -1858,38 +1903,22 @@ func getEnv(id string) (schemas.Environment, error) {
 
 func searchEnvs(query string) ([]schemas.Environment, error) {
 	var envs []schemas.Environment
-	filter := func(list []gorc.SearchResult) error {
+
+	data, _, err := search(schemas.EnvironmentsCollection, query, true)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, result := range data {
 		var env schemas.Environment
 
-		for _, result := range list {
-			err := result.Value(&env)
-			if err != nil {
-				return err
-			}
-
-			if env.Name != "" {
-				envs = append(envs, env)
-			}
-		}
-
-		return nil
-	}
-
-	envsData, err := db.Search(schemas.EnvironmentsCollection, query, 100, 0)
-	if err == nil {
-		err = filter(envsData.Results)
-	}
-	if err != nil {
-		return []schemas.Environment{}, err
-	}
-
-	for envsData.HasNext() {
-		envsData, err = db.SearchGetNext(envsData)
-		if err == nil {
-			err = filter(envsData.Results)
-		}
+		err := result.Value(&env)
 		if err != nil {
-			return []schemas.Environment{}, err
+			return nil, err
+		}
+
+		if env.Name != "" {
+			envs = append(envs, env)
 		}
 	}
 
@@ -1916,39 +1945,46 @@ func getContainer(id string) (schemas.Container, error) {
 
 func searchContainers(query string) ([]schemas.Container, error) {
 	var containers []schemas.Container
-	filter := func(list []gorc.SearchResult) error {
+
+	data, _, err := search(schemas.ContainersCollection, query, true)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, result := range data {
 		var container schemas.Container
 
-		for _, result := range list {
-			err := result.Value(&container)
-			if err != nil {
-				return err
-			}
-
-			containers = append(containers, container)
-		}
-
-		return nil
-	}
-
-	containersData, err := db.Search(schemas.ContainersCollection, query, 100, 0)
-	if err == nil {
-		err = filter(containersData.Results)
-	} else {
-		return []schemas.Container{}, err
-	}
-
-	for containersData.HasNext() {
-		containersData, err = db.SearchGetNext(containersData)
-		if err == nil {
-			err = filter(containersData.Results)
-		}
+		err := result.Value(&container)
 		if err != nil {
-			return []schemas.Container{}, err
+			return nil, err
 		}
+
+		containers = append(containers, container)
 	}
 
 	return containers, nil
+}
+
+func searchInstances(query string) ([]schemas.Instance, error) {
+	var instances []schemas.Instance
+
+	data, _, err := search(schemas.InstancesCollection, query, true)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, result := range data {
+		var instance schemas.Instance
+
+		err := result.Value(&instance)
+		if err != nil {
+			return nil, err
+		}
+
+		instances = append(instances, instance)
+	}
+
+	return instances, nil
 }
 
 type developerRes struct {
@@ -2040,4 +2076,25 @@ func shareEnv(environment *schemas.Environment, developer *schemas.Developer, em
 	}
 
 	return nil
+}
+
+// search returns the query results on a collection, paging the results if true.
+// The search results are returned, and the total count of items found in the db.
+func search(collection, query string, page bool) ([]gorc.SearchResult, uint64, error) {
+	data, err := db.Search(collection, query, 100, 0)
+	if err != nil {
+		return nil, 0, err
+	}
+	results := data.Results
+
+	for page && data.HasNext() {
+		data, err = db.SearchGetNext(data)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		results = append(results, data.Results...)
+	}
+
+	return results, data.TotalCount, nil
 }
