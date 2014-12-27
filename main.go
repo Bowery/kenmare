@@ -11,7 +11,6 @@ import (
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
-	"github.com/Bowery/gopackages/keen"
 	"github.com/Bowery/gopackages/rollbar"
 	"github.com/Bowery/gopackages/web"
 	"github.com/orchestrate-io/gorc"
@@ -21,7 +20,6 @@ import (
 var (
 	awsC, _     = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 	rollbarC    *rollbar.Client
-	keenC       keen.Client
 	pusherC     *pusher.Client
 	emailClient *email.Client
 	dir         string
@@ -37,10 +35,6 @@ func main() {
 	flag.Parse()
 
 	rollbarC = rollbar.NewClient(config.RollbarToken, env)
-	keenC = keen.Client{
-		WriteKey:  config.KeenWriteKey,
-		ProjectID: config.KeenProjectID,
-	}
 	pusherC = pusher.NewClient(config.PusherAppID, config.PusherKey, config.PusherSecret)
 	emailClient = email.NewClient()
 	dir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
