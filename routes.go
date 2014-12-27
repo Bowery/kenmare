@@ -1428,14 +1428,16 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		go pusherC.Publish("instance:0", "progress", fmt.Sprintf("container-%s", container.ID))
 		instance, err := getInstance()
-		go pusherC.Publish("instance:1", "progress", fmt.Sprintf("container-%s", container.ID))
 		if err != nil {
+			data, _ := json.Marshal(map[string]string{"error": err.Error()})
+			go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
 			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
 				"status": requests.StatusFailed,
 				"error":  err.Error(),
 			})
 			return
 		}
+		go pusherC.Publish("instance:1", "progress", fmt.Sprintf("container-%s", container.ID))
 		container.Instance = instance
 		container.Address = instance.Address
 		elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
@@ -1460,7 +1462,8 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			go pusherC.Publish("container:0", "progress", fmt.Sprintf("container-%s", container.ID))
 			err := delancey.Create(container)
 			if err != nil {
-				log.Println(err)
+				data, _ := json.Marshal(map[string]string{"error": err.Error()})
+				go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
 				return
 			}
 			go pusherC.Publish("container:1", "progress", fmt.Sprintf("container-%s", container.ID))
