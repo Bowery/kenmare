@@ -48,12 +48,8 @@ func CreateContainer(imageID, localPath string) (*schemas.Container, error) {
 }
 
 // SaveContainer requests kenmare to save a container.
-func SaveContainer(containerID string, commit bool) error {
-	addr := fmt.Sprintf("%s/containers/%s", config.KenmareAddr, containerID)
-	if !commit {
-		addr += "?commit=false"
-	}
-
+func SaveContainer(containerID string) error {
+	addr := fmt.Sprintf("%s/containers/%s/save", config.KenmareAddr, containerID)
 	req, err := http.NewRequest("PUT", addr, nil)
 	if err != nil {
 		return err
@@ -80,12 +76,8 @@ func SaveContainer(containerID string, commit bool) error {
 }
 
 // DeleteContainer requests kenmare to delete a container.
-func DeleteContainer(containerID string, commit bool) error {
+func DeleteContainer(containerID string) error {
 	addr := fmt.Sprintf("%s/containers/%s", config.KenmareAddr, containerID)
-	if !commit {
-		addr += "?commit=false"
-	}
-
 	req, err := http.NewRequest("DELETE", addr, nil)
 	if err != nil {
 		return err

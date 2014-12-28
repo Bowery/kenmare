@@ -45,7 +45,7 @@ func TestSaveContainerSuccess(t *testing.T) {
 	defer server.Close()
 	config.KenmareAddr = server.URL
 
-	err := SaveContainer(testContainerID, true)
+	err := SaveContainer(testContainerID)
 	if err != nil {
 		t.Error(err)
 	}
@@ -62,7 +62,7 @@ func TestDeleteContainerSuccess(t *testing.T) {
 	defer server.Close()
 	config.KenmareAddr = server.URL
 
-	err := DeleteContainer(testContainerID, true)
+	err := DeleteContainer(testContainerID)
 	if err != nil {
 		t.Error(err)
 	}
