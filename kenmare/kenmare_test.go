@@ -40,6 +40,23 @@ func testCreateContainerHandlerSuccess(rw http.ResponseWriter, req *http.Request
 	})
 }
 
+func TestSaveContainerSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(testSaveContainerHandlerSuccess))
+	defer server.Close()
+	config.KenmareAddr = server.URL
+
+	err := SaveContainer(testContainerID, true)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func testSaveContainerHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
+	renderer.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.StatusUpdated,
+	})
+}
+
 func TestDeleteContainerSuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(testDeleteContainerHandlerSuccess))
 	defer server.Close()
