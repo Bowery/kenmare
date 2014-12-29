@@ -1,4 +1,4 @@
-all: deps format
+all: deps
 	@mkdir -p bin/
 	@bash --norc -i ./scripts/build.sh
 
