@@ -12,38 +12,8 @@ DIR="$( cd -P "$( dirname "$SOURCE" )/.." && pwd )"
 # Change into that directory
 cd $DIR
 
-# Get the git commit
-GIT_COMMIT=$(git rev-parse HEAD)
-GIT_DIRTY=$(test -n "`git status --porcelain`" && echo "+CHANGES" || true)
-
-# If we're building on Windows, specify an extension
-EXTENSION=""
-if [ "$(go env GOOS)" = "windows" ]; then
-    EXTENSION=".exe"
-fi
-
-GOPATHSINGLE=${GOPATH%%:*}
-if [ "$(go env GOOS)" = "windows" ]; then
-    GOPATHSINGLE=${GOPATH%%;*}
-fi
-
-if [ "$(go env GOOS)" = "freebsd" ]; then
-  export CC="clang"
-  export CGO_LDFLAGS="$CGO_LDFLAGS -extld clang" # Workaround for https://code.google.com/p/go/issues/detail?id=6845
-fi
-
-# Install dependencies
-go get \
-  -ldflags "${CGO_LDFLAGS}" \
-  ./...
-
-# Build Kenmare!
 echo "--> Building Kenmare..."
-cd $DIR
-go build \
-    -ldflags "${CGO_LDFLAGS} -X main.GitCommit ${GIT_COMMIT}${GIT_DIRTY}" \
-    -o bin/kenmare${EXTENSION}
-cp bin/kenmare${EXTENSION} ${GOPATHSINGLE}/bin
+go get -d && go build -o bin/kenmare
 
-echo "--> Running on Port 3000"
+echo "--> Running Kenmare..."
 bin/kenmare --env=development
