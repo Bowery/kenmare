@@ -47,13 +47,37 @@ func CreateContainer(imageID, localPath string) (*schemas.Container, error) {
 	return resBody.Container, nil
 }
 
-// DeleteContainer requests kenmare to delete a container.
-func DeleteContainer(containerID string, commit bool) error {
-	addr := fmt.Sprintf("%s/containers/%s", config.KenmareAddr, containerID)
-	if !commit {
-		addr += "?commit=false"
+// SaveContainer requests kenmare to save a container.
+func SaveContainer(containerID string) error {
+	addr := fmt.Sprintf("%s/containers/%s/save", config.KenmareAddr, containerID)
+	req, err := http.NewRequest("PUT", addr, nil)
+	if err != nil {
+		return err
 	}
 
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	var resBody requests.Res
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		return err
+	}
+
+	if resBody.Status != requests.StatusUpdated {
+		return &resBody
+	}
+
+	return nil
+}
+
+// DeleteContainer requests kenmare to delete a container.
+func DeleteContainer(containerID string) error {
+	addr := fmt.Sprintf("%s/containers/%s", config.KenmareAddr, containerID)
 	req, err := http.NewRequest("DELETE", addr, nil)
 	if err != nil {
 		return err

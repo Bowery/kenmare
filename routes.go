@@ -54,6 +54,7 @@ var routes = []web.Route{
 	{"DELETE", "/environments/{id}/share", revokeAcccessToEnvByIDHandler, false},
 	{"POST", "/containers", createContainerHandler, false},
 	{"GET", "/containers/{id}", getContainerByIDHandler, false},
+	{"PUT", "/containers/{id}/save", saveContainerByIDHandler, false},
 	{"DELETE", "/containers/{id}", removeContainerByIDHandler, false},
 	{"PUT", "/images/{id}", updateImageByIDHandler, false},
 	{"POST", "/events", createEventHandler, false},
@@ -1520,12 +1521,40 @@ func getContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// saveContainerByIDHandler saves a container by the provided id.
+func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	containerID := vars["id"]
+
+	container, err := getContainer(containerID)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	if env != "testing" {
+		go func() {
+			err := delancey.Save(&container)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		}()
+	}
+
+	renderer.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.StatusUpdated,
+	})
+}
+
 // removeContainerByIDHandler terminates a container and sets the instance
 // as available.
 func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	containerID := vars["id"]
-	commit := req.FormValue("commit") != "false"
 
 	removestart := time.Now()
 	container, err := getContainer(containerID)
@@ -1542,7 +1571,7 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		go func() {
 			start := time.Now()
 			log.Println("calling delancey delete")
-			err := delancey.Delete(&container, commit)
+			err := delancey.Delete(&container)
 			if err != nil {
 				// TODO: handle error
 				fmt.Println(err)

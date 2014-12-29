@@ -894,6 +894,30 @@ func TestGetContainerSuccessful(t *testing.T) {
 	}
 }
 
+func TestSaveContainerSuccessful(t *testing.T) {
+	if createdContainer == nil {
+		t.Skip("Skipping because save failed")
+	}
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s/save", server.URL, createdContainer.ID)
+	req, err := http.NewRequest("PUT", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Error("unexpected status returned", res.StatusCode)
+	}
+}
+
 func TestUpdateImageSuccessful(t *testing.T) {
 	if createdContainer == nil {
 		t.Skip("Skipping because create failed")
