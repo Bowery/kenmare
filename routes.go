@@ -195,6 +195,7 @@ func getInstance() (*schemas.Instance, error) {
 	// Get list of instances from instance collection.
 	start := time.Now()
 	results, totalCount, err := search(schemas.InstancesCollection, "*", true)
+	fmt.Println("getInstance getting count of pool size", results, err)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +204,7 @@ func getInstance() (*schemas.Instance, error) {
 	// Check total for need to add to the pool.
 	if totalCount == 0 {
 		err = allocateInstances(20)
+		fmt.Println("allocateInstances just failed", err)
 		if err != nil {
 			return nil, err
 		}
@@ -214,6 +216,7 @@ func getInstance() (*schemas.Instance, error) {
 
 	if refresh {
 		results, _, err = search(schemas.InstancesCollection, "*", true)
+		fmt.Println("Fetching list of instances failed", results, err)
 		if err != nil {
 			return nil, err
 		}
@@ -227,6 +230,7 @@ func getInstance() (*schemas.Instance, error) {
 	for i, result := range results {
 		err := result.Value(&instances[i])
 		if err != nil {
+			fmt.Println("Assigning instance list in database failed", result, err)
 			return nil, err
 		}
 	}
@@ -237,12 +241,14 @@ func getInstance() (*schemas.Instance, error) {
 	// that to the client.
 	start = time.Now()
 	num, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
+	fmt.Println("Getting a random number", num, err)
 	if err != nil {
 		return nil, err
 	}
 
 	instance := instances[num.Int64()]
 	err = db.Delete(schemas.InstancesCollection, instance.ID)
+	fmt.Println("Deleting instance document in instances collection", instance, err)
 	if err != nil {
 		return nil, err
 	}
@@ -250,6 +256,7 @@ func getInstance() (*schemas.Instance, error) {
 	// Update the status tag for the now-used instance.
 	go func() {
 		err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
+		fmt.Println("Tagging isntance on AWS", instance, err)
 		if err != nil {
 			fmt.Println(err)
 		}
