@@ -154,7 +154,7 @@ func allocateInstances(num int) error {
 			fmt.Println("Creating instance", instance.ID)
 			instanceID, e := awsC.CreateInstance("ami-9eaa1cf6", aws.DefaultInstanceType, instance.ID, []int{}, true, userData)
 			if e != nil {
-				stack = gerrors.NewStackError(e)
+				stack := gerrors.NewStackError(e)
 				fmt.Println(stack.(*gerrors.StackError).Stack())
 				fmt.Println("create instance failed: ", e, instanceID)
 				err = e
