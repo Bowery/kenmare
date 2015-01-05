@@ -153,12 +153,14 @@ func allocateInstances(num int) error {
 			fmt.Println("Creating instance", instance.ID)
 			instanceID, e := awsC.CreateInstance("ami-9eaa1cf6", aws.DefaultInstanceType, instance.ID, []int{}, true, userData)
 			if e != nil {
+				fmt.Println("Error creating EC2 instance", instanceID, e)
 				err = e
 				return
 			}
 
 			addr, e := awsC.CheckInstance(instanceID)
 			if e != nil {
+				fmt.Println("Error checking instance on EC2", instanceID, e)
 				err = e
 				return
 			}
@@ -166,6 +168,7 @@ func allocateInstances(num int) error {
 			// Add the status tag for the new instance
 			e = awsC.TagInstance(instanceID, map[string]string{"status": "spare"})
 			if e != nil {
+				fmt.Println("Error tagging instance on EC2", instanceID, e)
 				err = e
 				return
 			}
@@ -176,6 +179,7 @@ func allocateInstances(num int) error {
 
 			_, e = db.Put(schemas.InstancesCollection, instance.ID, instance)
 			if e != nil {
+				fmt.Println("Orchestrate just puked on the instances collection", instance, e)
 				err = e
 				return
 			}
