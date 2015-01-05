@@ -1429,6 +1429,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		go pusherC.Publish("instance:0", "progress", fmt.Sprintf("container-%s", container.ID))
 		instance, err := getInstance()
+		fmt.Println("Getting the instance from AWS", instance, err)
 		if err != nil {
 			data, _ := json.Marshal(map[string]string{"error": err.Error()})
 			go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
@@ -1446,6 +1447,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
+	fmt.Println("Updating the container collection in database", err)
 	if err != nil {
 		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
 			"status": requests.StatusFailed,
@@ -1461,7 +1463,9 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		go func() {
 			start := time.Now()
 			go pusherC.Publish("container:0", "progress", fmt.Sprintf("container-%s", container.ID))
+			fmt.Println("Firing up container on AWS", container, err)
 			err := delancey.Create(container)
+			fmt.Println("Sending create command to Delancey", container, err)
 			if err != nil {
 				data, _ := json.Marshal(map[string]string{"error": err.Error()})
 				go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
@@ -1473,6 +1477,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 
 			start = time.Now()
 			_, err = db.Put(schemas.ContainersCollection, container.ID, container)
+			fmt.Println("Updating database with existing container", container, err)
 			if err != nil {
 				log.Println(err)
 				return
