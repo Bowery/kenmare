@@ -153,12 +153,14 @@ func allocateInstances(num int) error {
 			fmt.Println("Creating instance", instance.ID)
 			instanceID, e := awsC.CreateInstance("ami-9eaa1cf6", aws.DefaultInstanceType, instance.ID, []int{}, true, userData)
 			if e != nil {
+				fmt.Println("create instance failed: ", e, instanceID)
 				err = e
 				return
 			}
 
 			addr, e := awsC.CheckInstance(instanceID)
 			if e != nil {
+				fmt.Println("check instance failed: ", e, instanceID)
 				err = e
 				return
 			}
@@ -166,6 +168,7 @@ func allocateInstances(num int) error {
 			// Add the status tag for the new instance
 			e = awsC.TagInstance(instanceID, map[string]string{"status": "spare"})
 			if e != nil {
+				fmt.Println("Tagging instance failed: ", e, instanceID)
 				err = e
 				return
 			}
