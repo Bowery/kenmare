@@ -26,6 +26,7 @@ import (
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
+	gerrors "github.com/Bowery/gopackages/errors"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/Bowery/gopackages/slack"
@@ -153,6 +154,8 @@ func allocateInstances(num int) error {
 			fmt.Println("Creating instance", instance.ID)
 			instanceID, e := awsC.CreateInstance("ami-9eaa1cf6", aws.DefaultInstanceType, instance.ID, []int{}, true, userData)
 			if e != nil {
+				stack = gerrors.NewStackError(e)
+				fmt.Println(stack.(*gerrors.StackError).Stack())
 				fmt.Println("create instance failed: ", e, instanceID)
 				err = e
 				return
