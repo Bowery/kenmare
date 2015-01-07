@@ -198,6 +198,7 @@ func getInstance() (*schemas.Instance, error) {
 		return nil, err
 	}
 	refresh := false
+	refreshCheck := false
 
 	// Check total for need to add to the pool.
 	if totalCount == 0 {
@@ -209,6 +210,7 @@ func getInstance() (*schemas.Instance, error) {
 	} else if totalCount <= 15 {
 		go allocateInstances(20)
 		refresh = true
+		refreshCheck = true
 	}
 
 	if refresh {
@@ -241,9 +243,55 @@ func getInstance() (*schemas.Instance, error) {
 	}
 
 	instance := instances[num.Int64()]
-	err = db.Delete(schemas.InstancesCollection, instance.ID)
+	instanceID := instance.ID // store this so we don't check its for delancey twice
+	err = db.Delete(schemas.InstancesCollection, instanceID)
 	if err != nil {
 		return nil, err
+	}
+
+	if !refresh || refreshCheck {
+		err = delancey.Health(instance.Address)
+		log.Println("checking if delancey is up", err)
+		if err != nil {
+			var wg sync.WaitGroup
+			// the +1 in the buffer length makes sure that the channel doesn't send
+			// with nothing listening for it and cause a panic
+			doneChan := make(chan *schemas.Instance, len(instances)+1)
+
+			for _, instance := range instances {
+				if instance.ID == instanceID {
+					continue
+				}
+
+				wg.Add(1)
+				go func(i schemas.Instance) {
+					defer wg.Done()
+
+					err := delancey.Health(i.Address)
+					if err != nil {
+						log.Println("additional instance is down")
+						db.Delete(schemas.InstancesCollection, i.ID)
+						return
+					}
+
+					doneChan <- &i
+				}(instance)
+			}
+
+			go func() {
+				wg.Wait()
+				doneChan <- nil
+			}()
+
+			val := <-doneChan
+			// case where there was no instance running
+			if val == nil {
+				log.Println("no instances were running")
+				return getInstance()
+			}
+
+			return val, nil
+		}
 	}
 
 	// Update the status tag for the now-used instance.
