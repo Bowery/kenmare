@@ -198,6 +198,7 @@ func getInstance() (*schemas.Instance, error) {
 		return nil, err
 	}
 	refresh := false
+	refreshCheck := false
 
 	// Check total for need to add to the pool.
 	if totalCount == 0 {
@@ -209,6 +210,7 @@ func getInstance() (*schemas.Instance, error) {
 	} else if totalCount <= 15 {
 		go allocateInstances(20)
 		refresh = true
+		refreshCheck = true
 	}
 
 	if refresh {
@@ -244,6 +246,13 @@ func getInstance() (*schemas.Instance, error) {
 	err = db.Delete(schemas.InstancesCollection, instance.ID)
 	if err != nil {
 		return nil, err
+	}
+
+	if !refresh || refreshCheck {
+		err = delancey.Health(instance.Address, time.Millisecond*70)
+		if err != nil {
+			return getInstance()
+		}
 	}
 
 	// Update the status tag for the now-used instance.
@@ -1469,7 +1478,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 				}
 				<-time.After(backoff.Delay)
 				log.Println("checking agent availability")
-				if delancey.Health(container.Address) == nil {
+				if delancey.Health(container.Address, time.Millisecond*70) == nil {
 					break
 				}
 			}
