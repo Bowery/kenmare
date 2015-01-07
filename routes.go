@@ -28,7 +28,6 @@ import (
 	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
-	"github.com/Bowery/gopackages/slack"
 	"github.com/Bowery/gopackages/update"
 	"github.com/Bowery/gopackages/util"
 	"github.com/Bowery/gopackages/web"
@@ -421,7 +420,7 @@ func createApplicationHandler(rw http.ResponseWriter, req *http.Request) {
 
 	msg := fmt.Sprintf("%s created a new application", dev.Name)
 	if env != "testing" {
-		go slack.SendMessage("#activity", msg, "Drizzy Drake")
+		go slackC.SendMessage("#activity", msg, "Drizzy Drake")
 	}
 
 	// Create app. This also will create a new environment.
