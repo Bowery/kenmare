@@ -243,14 +243,13 @@ func getInstance() (*schemas.Instance, error) {
 	}
 
 	instance := instances[num.Int64()]
-	instanceID := instance.ID // store this so we don't check its for delancey twice
-	err = db.Delete(schemas.InstancesCollection, instanceID)
+	err = db.Delete(schemas.InstancesCollection, instance.ID)
 	if err != nil {
 		return nil, err
 	}
 
 	if !refresh || refreshCheck {
-		err = delancey.Health(instance.Address)
+		err = delancey.Health(instance.Address, time.Millisecond*70)
 		if err != nil {
 			return getInstance()
 		}
@@ -1479,7 +1478,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 				}
 				<-time.After(backoff.Delay)
 				log.Println("checking agent availability")
-				if delancey.Health(container.Address) == nil {
+				if delancey.Health(container.Address, time.Millisecond*70) == nil {
 					break
 				}
 			}
