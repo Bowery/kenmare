@@ -12,6 +12,7 @@ import (
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/rollbar"
+	"github.com/Bowery/gopackages/slack"
 	"github.com/Bowery/gopackages/web"
 	"github.com/orchestrate-io/gorc"
 	"github.com/timonv/pusher"
@@ -21,6 +22,7 @@ var (
 	awsC, _     = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 	rollbarC    *rollbar.Client
 	pusherC     *pusher.Client
+	slackC      *slack.Client
 	emailClient *email.Client
 	dir         string
 	staticDir   string
@@ -37,6 +39,7 @@ func main() {
 	rollbarC = rollbar.NewClient(config.RollbarToken, env)
 	pusherC = pusher.NewClient(config.PusherAppID, config.PusherKey, config.PusherSecret)
 	emailClient = email.NewClient()
+	slackC = slack.NewClient(config.SlackToken)
 	dir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	staticDir = filepath.Join(dir, "static")
 	orchestrateKey := config.OrchestrateDevKey
