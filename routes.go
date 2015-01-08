@@ -1558,13 +1558,14 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if env != "testing" {
-		go func() {
-			err := delancey.Save(&container)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-		}()
+		err := delancey.Save(&container)
+		if err != nil {
+			renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+				"status": requests.StatusFailed,
+				"error":  err.Error(),
+			})
+			return
+		}
 	}
 
 	renderer.JSON(rw, http.StatusOK, map[string]string{
