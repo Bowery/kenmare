@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
+	"io"
 	"log"
 	"math/big"
 	"net"
@@ -60,6 +62,8 @@ var routes = []web.Route{
 	{"GET", "/auth/validate-keys", validateKeysHandler, false},
 	{"GET", "/client/check", clientCheckHandler, false},
 	{"GET", "/_/stats/instance-count", getInstanceCountHandler, false},
+	{"GET", "/export/{envID}", exportHandler, false},
+	{"GET", "/tar/{envID}", getTarHandler, false},
 }
 
 var renderer = render.New(render.Options{
@@ -1867,6 +1871,68 @@ func getInstanceCountHandler(rw http.ResponseWriter, req *http.Request) {
 			},
 		},
 	})
+}
+
+func exportHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	envID := vars["envID"]
+
+	script := `#!/bin/bash
+set -e
+mp={{.EnvID}}
+curl -L -f {{.Host}}/tar/{{.EnvID}} | tar -xzvf -
+sudo mkdir -p /tmp/${mp}
+hash=$(ls -d */ | sed 's|/||g')
+sudo tar xvf ${hash}/layer.tar -C /tmp/${mp}
+sudo mkdir -p /tmp/${mp}/proc /tmp/${mp}/dev /tmp/${mp}/dev/pts /tmp/${mp}/sys /tmp/${mp}/etc
+sudo mount -o bind /proc /tmp/${mp}/proc
+sudo mount -o bind /dev /tmp/${mp}/dev
+sudo mount -o bind /dev/pts /tmp/${mp}/dev/pts
+sudo mount -o bind /sys /tmp/${mp}/sys
+sudo cp /etc/resolv.conf /tmp/${mp}/etc/resolv.conf`
+
+	t, err := template.New("script").Parse(script)
+	if err != nil {
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	var buf bytes.Buffer
+
+	err = t.Execute(&buf, map[string]string{
+		"Host":  config.KenmareAddr,
+		"EnvID": envID,
+	})
+	if err != nil {
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	renderer.JSON(rw, http.StatusOK, map[string]string{
+		"docker": fmt.Sprintf("curl -L -f %s/tar/%s | docker load", config.KenmareAddr, envID),
+		"shell":  buf.String(),
+	})
+}
+
+func getTarHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	envID := vars["envID"]
+
+	res, err := http.Get(fmt.Sprintf("https://thebyrd:golang123@quay.io/c1/squash/bowery/ubuntu/%s", envID))
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+	defer res.Body.Close()
+
+	io.Copy(rw, res.Body)
 }
 
 // getApp retrieves an application and it's associated errors
