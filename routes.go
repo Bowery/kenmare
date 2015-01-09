@@ -62,8 +62,8 @@ var routes = []web.Route{
 	{"GET", "/auth/validate-keys", validateKeysHandler, false},
 	{"GET", "/client/check", clientCheckHandler, false},
 	{"GET", "/_/stats/instance-count", getInstanceCountHandler, false},
-	{"GET", "/export/{envID}", exportHandler, false},
-	{"GET", "/tar/{envID}", getTarHandler, false},
+	{"GET", "/export/{imageID}", exportHandler, false},
+	{"GET", "/tar/{imageID}", getTarHandler, false},
 }
 
 var renderer = render.New(render.Options{
@@ -1875,12 +1875,12 @@ func getInstanceCountHandler(rw http.ResponseWriter, req *http.Request) {
 
 func exportHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	envID := vars["envID"]
+	imageID := vars["imageID"]
 
 	script := `#!/bin/bash
 set -e
-mp={{.EnvID}}
-curl -L -f {{.Host}}/tar/{{.EnvID}} | tar -xzvf -
+mp={{.ImageID}} # mount point
+curl -L -f {{.Host}}/tar/{{.ImageID}} | tar -xzvf -
 sudo mkdir -p /tmp/${mp}
 hash=$(ls -d */ | sed 's|/||g')
 sudo tar xvf ${hash}/layer.tar -C /tmp/${mp}
@@ -1889,7 +1889,8 @@ sudo mount -o bind /proc /tmp/${mp}/proc
 sudo mount -o bind /dev /tmp/${mp}/dev
 sudo mount -o bind /dev/pts /tmp/${mp}/dev/pts
 sudo mount -o bind /sys /tmp/${mp}/sys
-sudo cp /etc/resolv.conf /tmp/${mp}/etc/resolv.conf`
+sudo cp /etc/resolv.conf /tmp/${mp}/etc/resolv.conf
+echo "To use, run 'sudo chroot /tmp/${mp}/ /bin/bash'`
 
 	t, err := template.New("script").Parse(script)
 	if err != nil {
@@ -1903,8 +1904,8 @@ sudo cp /etc/resolv.conf /tmp/${mp}/etc/resolv.conf`
 	var buf bytes.Buffer
 
 	err = t.Execute(&buf, map[string]string{
-		"Host":  config.KenmareAddr,
-		"EnvID": envID,
+		"Host":    config.KenmareAddr,
+		"ImageID": imageID,
 	})
 	if err != nil {
 		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
@@ -1914,17 +1915,23 @@ sudo cp /etc/resolv.conf /tmp/${mp}/etc/resolv.conf`
 		return
 	}
 
-	renderer.JSON(rw, http.StatusOK, map[string]string{
-		"docker": fmt.Sprintf("curl -L -f %s/tar/%s | docker load", config.KenmareAddr, envID),
-		"shell":  buf.String(),
-	})
+	res := requests.ExportRes{
+		Docker: fmt.Sprintf("curl -L -f %s/tar/%s | docker load", config.KenmareAddr, imageID),
+		Shell:  buf.String(),
+	}
+	res.Res = new(requests.Res)
+	res.Status = requests.StatusSuccess
+
+	renderer.JSON(rw, http.StatusOK, res)
 }
 
 func getTarHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	envID := vars["envID"]
+	imageID := vars["imageID"]
 
-	res, err := http.Get(fmt.Sprintf("https://thebyrd:golang123@quay.io/c1/squash/bowery/ubuntu/%s", envID))
+	res, err := http.Get(fmt.Sprintf(
+		"https://thebyrd:golang123@quay.io/c1/squash/bowery/ubuntu/%s", imageID,
+	))
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write([]byte(err.Error()))

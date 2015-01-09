@@ -131,3 +131,26 @@ func UpdateImage(imageID string) error {
 
 	return nil
 }
+
+// Export calls the export endpoint on the kenmare server and returns the body
+func Export(imageID string) (*requests.ExportRes, error) {
+	addr := fmt.Sprintf("%s/export/%s", config.KenmareAddr, imageID)
+	res, err := http.Get(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var resBody requests.ExportRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		return nil, err
+	}
+
+	if resBody.Status != requests.StatusSuccess {
+		return nil, &resBody
+	}
+
+	return &resBody, nil
+}
