@@ -1509,7 +1509,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			start = time.Now()
 			data, err := json.Marshal(container)
 			if err == nil {
-				err = pusherC.Publish(string(data), "update", fmt.Sprintf("container-%s", container.ID))
+				err = pusherC.Publish(string(data), "created", fmt.Sprintf("container-%s", container.ID))
 				if err != nil {
 					log.Println(err)
 				}
