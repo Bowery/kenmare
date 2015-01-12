@@ -27,6 +27,8 @@ import (
 	"github.com/Bowery/delancey/delancey"
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
+	"github.com/Bowery/gopackages/docker"
+	"github.com/Bowery/gopackages/docker/quay"
 	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
@@ -1929,17 +1931,14 @@ func getTarHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	imageID := vars["imageID"]
 
-	res, err := http.Get(fmt.Sprintf(
-		"https://thebyrd:golang123@quay.io/c1/squash/bowery/ubuntu/%s", imageID,
-	))
+	contents, err := quay.SquashImage(docker.DefaultAuth, config.DockerBaseImage+":"+imageID)
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write([]byte(err.Error()))
 		return
 	}
-	defer res.Body.Close()
 
-	io.Copy(rw, res.Body)
+	io.Copy(rw, contents)
 }
 
 // getApp retrieves an application and it's associated errors
