@@ -15,15 +15,21 @@ import (
 	"github.com/Bowery/gopackages/rollbar"
 	"github.com/Bowery/gopackages/slack"
 	"github.com/Bowery/gopackages/web"
-	"github.com/orchestrate-io/gorc"
-	"github.com/timonv/pusher"
+	"github.com/Bowery/gorc"
+	pusherSub "github.com/oguzbilgic/pusher"
+	pusherPub "github.com/timonv/pusher"
+)
+
+const (
+	ImageStateStr = "imageState"
 )
 
 var (
 	awsC, _     = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 	gcloudC     *gcloud.Client
 	rollbarC    *rollbar.Client
-	pusherC     *pusher.Client
+	pusherPubC  *pusherPub.Client
+	pusherSubC  *pusherSub.Connection
 	slackC      *slack.Client
 	emailClient *email.Client
 	dir         string
@@ -40,7 +46,12 @@ func main() {
 
 	gcloudC, _ = gcloud.NewClient(config.GoogleCloudProjectID, config.GoogleCloudEmail, []byte(config.GoogleCloudPrivateKey))
 	rollbarC = rollbar.NewClient(config.RollbarToken, env)
-	pusherC = pusher.NewClient(config.PusherAppID, config.PusherKey, config.PusherSecret)
+	pusherPubC = pusherPub.NewClient(config.PusherAppID, config.PusherKey, config.PusherSecret)
+	var err error
+	pusherSubC, err = pusherSub.New(config.PusherKey)
+	if err != nil {
+		panic(err)
+	}
 	emailClient = email.NewClient()
 	slackC = slack.NewClient(config.SlackToken)
 	dir, _ = filepath.Abs(filepath.Dir(os.Args[0]))

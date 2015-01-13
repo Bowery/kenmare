@@ -26,6 +26,7 @@ import (
 	"github.com/Bowery/delancey/delancey"
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
+	dm "github.com/Bowery/gopackages/distmutex"
 	"github.com/Bowery/gopackages/docker"
 	"github.com/Bowery/gopackages/docker/quay"
 	"github.com/Bowery/gopackages/email"
@@ -34,8 +35,8 @@ import (
 	"github.com/Bowery/gopackages/update"
 	"github.com/Bowery/gopackages/util"
 	"github.com/Bowery/gopackages/web"
+	"github.com/Bowery/gorc"
 	"github.com/gorilla/mux"
-	"github.com/orchestrate-io/gorc"
 	"github.com/stathat/go"
 	"github.com/unrolled/render"
 )
@@ -65,6 +66,10 @@ var routes = []web.Route{
 	{"GET", "/_/stats/instance-count", getInstanceCountHandler, false},
 	{"GET", "/export/{imageID}", exportHandler, false},
 	{"GET", "/tar/{imageID}", getTarHandler, false},
+	{"GET", "/images/lock", imagesLockHandler, false},
+	{"GET", "/images/unlock", imagesUnlockHandler, false},
+	{"GET", "/images/rlock", imagesRLockHandler, false},
+	{"GET", "/images/runlock", imagesRUnlockHandler, false},
 }
 
 var renderer = render.New(render.Options{
@@ -1431,18 +1436,18 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	// Get the instance to use from Google Cloud.
 	if env != "testing" {
 		start := time.Now()
-		go pusherC.Publish("instance:0", "progress", fmt.Sprintf("container-%s", container.ID))
+		go pusherPubC.Publish("instance:0", "progress", fmt.Sprintf("container-%s", container.ID))
 		instance, err := getInstance()
 		if err != nil {
 			data, _ := json.Marshal(map[string]string{"error": err.Error()})
-			go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
+			go pusherPubC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
 			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
 				"status": requests.StatusFailed,
 				"error":  err.Error(),
 			})
 			return
 		}
-		go pusherC.Publish("instance:1", "progress", fmt.Sprintf("container-%s", container.ID))
+		go pusherPubC.Publish("instance:1", "progress", fmt.Sprintf("container-%s", container.ID))
 		container.Instance = instance
 		container.Address = instance.Address
 		elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
@@ -1464,7 +1469,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" {
 		go func() {
 			start := time.Now()
-			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
+			go pusherPubC.Publish("container:0", "progress", fmt.Sprintf("container-%s", container.ID))
 
 			// Wait till the agent is up and running.
 			var backoff *util.Backoff
@@ -1486,10 +1491,10 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			err := delancey.Create(container)
 			if err != nil {
 				data, _ := json.Marshal(map[string]string{"error": err.Error()})
-				go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
+				go pusherPubC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
 				return
 			}
-			go pusherC.Publish("environment:1", "progress", fmt.Sprintf("container-%s", container.ID))
+			go pusherPubC.Publish("container:1", "progress", fmt.Sprintf("container-%s", container.ID))
 			elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
 			go stathat.PostEZValue("kenmare delancey create container time", config.StatHatKey, elapsed)
 
@@ -1505,7 +1510,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			start = time.Now()
 			data, err := json.Marshal(container)
 			if err == nil {
-				err = pusherC.Publish(string(data), "created", fmt.Sprintf("container-%s", container.ID))
+				err = pusherPubC.Publish(string(data), "created", fmt.Sprintf("container-%s", container.ID))
 				if err != nil {
 					log.Println(err)
 				}
@@ -1559,14 +1564,14 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	if env != "testing" {
 		go func() {
-			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
+			go pusherPubC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
 			err := delancey.Save(&container)
 			if err != nil {
 				data, _ := json.Marshal(map[string]string{"error": err.Error()})
-				go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
+				go pusherPubC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
 				return
 			}
-			go pusherC.Publish("", "saved", fmt.Sprintf("container-%s", container.ID))
+			go pusherPubC.Publish("", "saved", fmt.Sprintf("container-%s", container.ID))
 		}()
 	}
 
@@ -1653,7 +1658,7 @@ func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	for _, container := range containers {
 		if container.ImageID == imageID {
-			go pusherC.Publish("updated", "update", fmt.Sprintf("container-%s", container.ID))
+			go pusherPubC.Publish("updated", "update", fmt.Sprintf("container-%s", container.ID))
 		}
 	}
 
@@ -1932,6 +1937,79 @@ func getTarHandler(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write([]byte(err.Error()))
 		return
+	}
+}
+
+// imagesOp contains all the repeate logic for the locking/unlocking handlers.
+func imagesOp(rw http.ResponseWriter, req *http.Request, op func() error) {
+	res := requests.Res{
+		Status: requests.StatusSuccess,
+	}
+
+	err := op()
+	if err != nil {
+		res.Status = requests.StatusFailed
+		res.Err = err.Error()
+
+		renderer.JSON(rw, http.StatusInternalServerError, res)
+		return
+	}
+
+	renderer.JSON(rw, http.StatusOK, res)
+}
+
+// newMutex starts up a new *distmutex.DistMutex after starting up the Pusher channels.
+func newMutex(key string, rw http.ResponseWriter) *dm.DistMutex {
+	if key == "" {
+		res := requests.Res{
+			Status: requests.StatusFailed,
+			Err:    "Empty key.",
+		}
+		renderer.JSON(rw, http.StatusInternalServerError, res)
+		return nil
+	}
+
+	channel := ImageStateStr + "-" + key
+	w := NewPusherMutexWait(channel, pusherSubC.Channel(channel), pusherPubC)
+
+	closed := rw.(http.CloseNotifier).CloseNotify()
+
+	go func() {
+		<-closed
+		close(w.Closer)
+	}()
+
+	return dm.NewDistMutex(
+		NewOrcMutexDB(db, ImageStateStr, key),
+		w,
+	)
+}
+
+func imagesLockHandler(rw http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("key")
+	if mutex := newMutex(key, rw); mutex != nil {
+		imagesOp(rw, req, mutex.Lock)
+	}
+}
+
+func imagesUnlockHandler(rw http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("key")
+	if mutex := newMutex(key, rw); mutex != nil {
+		imagesOp(rw, req, mutex.Unlock)
+	}
+}
+
+func imagesRLockHandler(rw http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("key")
+	if mutex := newMutex(key, rw); mutex != nil {
+		imagesOp(rw, req, mutex.RLock)
+	}
+}
+
+func imagesRUnlockHandler(rw http.ResponseWriter, req *http.Request) {
+	key := req.FormValue("key")
+	if mutex := newMutex(key, rw); mutex != nil {
+		imagesOp(rw, req, mutex.RUnlock)
 	}
 }
 

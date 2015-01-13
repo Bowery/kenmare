@@ -154,3 +154,47 @@ func Export(imageID string) (*requests.ExportRes, error) {
 
 	return &resBody, nil
 }
+
+// LockImage locks the given image id for pushing use.
+func LockImage(imageID string) error {
+	return imageOp(imageID, "lock")
+}
+
+// UnlockImage unlocks the given image id after pushing use.
+func UnlockImage(imageID string) error {
+	return imageOp(imageID, "unlock")
+}
+
+// RLockImage locks the given image id for pulling use.
+func RLockImage(imageID string) error {
+	return imageOp(imageID, "rlock")
+}
+
+// RUnlockImage unlocks the given image id after pulling use.
+func RUnlockImage(imageID string) error {
+	return imageOp(imageID, "runlock")
+}
+
+// imageOp contains logic that is identical (http request to kenmare to call the
+// locking operations) in every method for locking or unlocking
+func imageOp(imageID, op string) error {
+	addr := fmt.Sprintf("%s/images/%s?key=%s", config.KenmareAddr, op, imageID)
+	res, err := http.Get(addr)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	var resBody requests.Res
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		return err
+	}
+
+	if resBody.Status != requests.StatusSuccess {
+		return &resBody
+	}
+
+	return nil
+}

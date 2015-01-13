@@ -16,8 +16,8 @@ import (
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/rollbar"
 	"github.com/Bowery/gopackages/schemas"
+	"github.com/Bowery/gorc"
 	"github.com/gorilla/mux"
-	"github.com/orchestrate-io/gorc"
 )
 
 type createApplicationRes struct {
