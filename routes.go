@@ -1564,6 +1564,7 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if env != "testing" {
+		go pusherC.Publish("container:0", "progress", fmt.Sprintf("container-%s", container.ID))
 		err := delancey.Save(&container)
 		if err != nil {
 			renderer.JSON(rw, http.StatusBadRequest, map[string]string{
@@ -1572,6 +1573,7 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			})
 			return
 		}
+		go pusherC.Publish("container:1", "progress", fmt.Sprintf("container-%s", container.ID))
 	}
 
 	renderer.JSON(rw, http.StatusOK, map[string]string{
