@@ -75,19 +75,9 @@ var renderer = render.New(render.Options{
 
 var baseEnvID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
 
-var userData = []byte(`#!/bin/bash
-apt-get update
-apt-get install -y git-core vim
-curl -sSL https://get.docker.com/ubuntu/ | sh
-apt-get install -y linux-image-extra-$(uname -r)
-restart docker
-wget http://bowery.sh/bowery-agent
-chmod +x bowery-agent
-./bowery-agent &> /home/ubuntu/bowery-agent-debug.log`)
-
 // Minimum number of instances to have in the spare pool
 const (
-	InstancePoolMin = 20
+	InstancePoolMin = 10
 )
 
 func authHandler(req *http.Request, user, pass string) (bool, error) {
@@ -152,33 +142,34 @@ func allocateInstances(num int) error {
 			instancestart := time.Now()
 
 			instance := &schemas.Instance{
-				ID: uuid.New(),
+				ID:         uuid.New(),
+				InstanceID: fmt.Sprintf("bowery-%s", uuid.New()),
+				Provider:   schemas.ProviderGoogleCloudPlatform,
 			}
 
-			fmt.Println("Creating instance", instance.ID)
-			instanceID, e := awsC.CreateInstance("ami-9eaa1cf6", aws.DefaultInstanceType, instance.ID, []int{}, true, userData)
+			fmt.Println("Creating instance", instance.InstanceID)
+			e := gcloudC.CreateInstance(instance.InstanceID, config.BoweryBaseImage, "n1-standard-1", "http://bowery.sh/startup.sh")
 			if e != nil {
 				err = e
 				return
 			}
 
-			addr, e := awsC.CheckInstance(instanceID)
+			fmt.Println("Checking instance", instance.InstanceID)
+			addr, e := gcloudC.CheckInstance(instance.InstanceID)
 			if e != nil {
 				err = e
 				return
 			}
-
-			// Add the status tag for the new instance
-			e = awsC.TagInstance(instanceID, map[string]string{"status": "spare"})
-			if e != nil {
-				err = e
-				return
-			}
-
-			instance.InstanceID = instanceID
 			instance.Address = addr
-			instance.AMI = aws.DefaultAMI
 
+			fmt.Println("Tagging instance", instance.InstanceID)
+			e = gcloudC.TagInstance(instance.InstanceID, []string{"spare"})
+			if e != nil {
+				err = e
+				return
+			}
+
+			fmt.Println("Saving instance", instance.InstanceID)
 			_, e = db.Put(schemas.InstancesCollection, instance.ID, instance)
 			if e != nil {
 				err = e
@@ -208,13 +199,13 @@ func getInstance() (*schemas.Instance, error) {
 
 	// Check total for need to add to the pool.
 	if totalCount == 0 {
-		err = allocateInstances(20)
+		err = allocateInstances(10)
 		if err != nil {
 			return nil, err
 		}
 		refresh = true
-	} else if totalCount <= 15 {
-		go allocateInstances(20)
+	} else if totalCount <= 5 {
+		go allocateInstances(10)
 		refresh = true
 		refreshCheck = true
 	}
@@ -263,7 +254,7 @@ func getInstance() (*schemas.Instance, error) {
 
 	// Update the status tag for the now-used instance.
 	go func() {
-		err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "live"})
+		err = gcloudC.TagInstance(instance.InstanceID, []string{"live"})
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -283,7 +274,7 @@ func deleteInstance(instance *schemas.Instance) error {
 	}
 
 	// Re-tag the instance 'spare' on EC2.
-	err = awsC.TagInstance(instance.InstanceID, map[string]string{"status": "spare"})
+	err = gcloudC.TagInstance(instance.InstanceID, []string{"spare"})
 	if err != nil {
 		return err
 	}
@@ -1410,7 +1401,7 @@ func revokeAcccessToEnvByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
-// createContainerHandler creates a container on an available AWS instance.
+// createContainerHandler creates a container on an available Google Cloud instance.
 // If provided, the container created will be based on the `imageID`. During
 // the creation process, if Kenmare detects the instance pool is below
 // it's threshold, it will refill the pool in a separate routine.
@@ -1438,7 +1429,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		CreatedAt: time.Now(),
 	}
 
-	// Get the instance to use from AWS.
+	// Get the instance to use from Google Cloud.
 	if env != "testing" {
 		start := time.Now()
 		go pusherC.Publish("instance:0", "progress", fmt.Sprintf("container-%s", container.ID))

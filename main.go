@@ -11,6 +11,7 @@ import (
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/email"
+	"github.com/Bowery/gopackages/gcloud"
 	"github.com/Bowery/gopackages/rollbar"
 	"github.com/Bowery/gopackages/slack"
 	"github.com/Bowery/gopackages/web"
@@ -20,6 +21,7 @@ import (
 
 var (
 	awsC, _     = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
+	gcloudC     *gcloud.Client
 	rollbarC    *rollbar.Client
 	pusherC     *pusher.Client
 	slackC      *slack.Client
@@ -36,6 +38,7 @@ func main() {
 	flag.StringVar(&port, "port", ":3000", "Port to listen on.")
 	flag.Parse()
 
+	gcloudC, _ = gcloud.NewClient(config.GoogleCloudProjectID, config.GoogleCloudEmail, []byte(config.GoogleCloudPrivateKey))
 	rollbarC = rollbar.NewClient(config.RollbarToken, env)
 	pusherC = pusher.NewClient(config.PusherAppID, config.PusherKey, config.PusherSecret)
 	emailClient = email.NewClient()
