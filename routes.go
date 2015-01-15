@@ -77,7 +77,7 @@ var baseEnvID = "feb1310b-2303-4265-b8a3-4d02e8f67c01"
 
 // Minimum number of instances to have in the spare pool
 const (
-	InstancePoolMin = 10
+	InstancePoolMin = 20
 )
 
 func authHandler(req *http.Request, user, pass string) (bool, error) {
@@ -199,13 +199,13 @@ func getInstance() (*schemas.Instance, error) {
 
 	// Check total for need to add to the pool.
 	if totalCount == 0 {
-		err = allocateInstances(10)
+		err = allocateInstances(20)
 		if err != nil {
 			return nil, err
 		}
 		refresh = true
-	} else if totalCount <= 5 {
-		go allocateInstances(10)
+	} else if totalCount <= 15 {
+		go allocateInstances(20)
 		refresh = true
 		refreshCheck = true
 	}
