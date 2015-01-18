@@ -55,6 +55,7 @@ func main() {
 	server := web.NewServer(port, []web.Handler{
 		new(web.SlashHandler),
 		new(web.CorsHandler),
+		new(web.GzipHandler),
 		&web.StatHandler{Key: config.StatHatKey, Name: "kenmare"},
 	}, routes)
 	server.AuthHandler = &web.AuthHandler{Auth: authHandler}
