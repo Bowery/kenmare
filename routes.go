@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"log"
 	"math/big"
 	"net"
@@ -1928,14 +1927,12 @@ func getTarHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	imageID := vars["imageID"]
 
-	contents, err := quay.SquashImage(docker.DefaultAuth, config.DockerBaseImage+":"+imageID)
+	err := quay.SquashImage(docker.DefaultAuth, config.DockerBaseImage+":"+imageID, rw)
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write([]byte(err.Error()))
 		return
 	}
-
-	io.Copy(rw, contents)
 }
 
 // getApp retrieves an application and it's associated errors
