@@ -1468,12 +1468,16 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
 
 			// Wait till the agent is up and running.
-			backoff := util.NewBackoff(0)
+			var backoff *util.Backoff
 			for {
-				if !backoff.Next() {
-					return
+				if backoff != nil {
+					if !backoff.Next() {
+						return
+					}
+					<-time.After(backoff.Delay)
+				} else {
+					backoff = util.NewBackoff(0)
 				}
-				<-time.After(backoff.Delay)
 				log.Println("checking agent availability")
 				if delancey.Health(container.Address, time.Millisecond*70) == nil {
 					break
@@ -1555,16 +1559,16 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if env != "testing" {
-		go pusherC.Publish("container:0", "progress", fmt.Sprintf("container-%s", container.ID))
-		err := delancey.Save(&container)
-		if err != nil {
-			renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-				"status": requests.StatusFailed,
-				"error":  err.Error(),
-			})
-			return
-		}
-		go pusherC.Publish("container:1", "progress", fmt.Sprintf("container-%s", container.ID))
+		go func() {
+			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
+			err := delancey.Save(&container)
+			if err != nil {
+				data, _ := json.Marshal(map[string]string{"error": err.Error()})
+				go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
+				return
+			}
+			go pusherC.Publish("", "saved", fmt.Sprintf("container-%s", container.ID))
+		}()
 	}
 
 	renderer.JSON(rw, http.StatusOK, map[string]string{
