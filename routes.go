@@ -1468,12 +1468,16 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
 
 			// Wait till the agent is up and running.
-			backoff := util.NewBackoff(0)
+			var backoff *util.Backoff
 			for {
-				if !backoff.Next() {
-					return
+				if backoff != nil {
+					if !backoff.Next() {
+						return
+					}
+					<-time.After(backoff.Delay)
+				} else {
+					backoff = util.NewBackoff(0)
 				}
-				<-time.After(backoff.Delay)
 				log.Println("checking agent availability")
 				if delancey.Health(container.Address, time.Millisecond*70) == nil {
 					break
