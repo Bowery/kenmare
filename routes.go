@@ -1465,7 +1465,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" {
 		go func() {
 			start := time.Now()
-			go pusherC.Publish("container:0", "progress", fmt.Sprintf("container-%s", container.ID))
+			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
 
 			// Wait till the agent is up and running.
 			backoff := util.NewBackoff(0)
@@ -1486,7 +1486,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 				go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
 				return
 			}
-			go pusherC.Publish("container:1", "progress", fmt.Sprintf("container-%s", container.ID))
+			go pusherC.Publish("environment:1", "progress", fmt.Sprintf("container-%s", container.ID))
 			elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
 			go stathat.PostEZValue("kenmare delancey create container time", config.StatHatKey, elapsed)
 
