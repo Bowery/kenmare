@@ -277,6 +277,10 @@ func deleteInstance(instance *schemas.Instance) error {
 	if err != nil {
 		return err
 	}
+
+	// Remove ip firewall rule.
+	gcloudC.RemoveFirewall(fmt.Sprintf("restrict-to-ips-%s", instance.InstanceID))
+
 	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
 	go stathat.PostEZValue("kenmare return instance to pool time", config.StatHatKey, elapsed)
 	return nil
@@ -1422,10 +1426,11 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	container := &schemas.Container{
-		ID:        uuid.New(),
-		ImageID:   imageID,
-		LocalPath: body.LocalPath,
-		CreatedAt: time.Now(),
+		ID:             uuid.New(),
+		ImageID:        imageID,
+		LocalPath:      body.LocalPath,
+		CollaboratorIP: body.CollaboratorIP,
+		CreatedAt:      time.Now(),
 	}
 
 	// Get the instance to use from Google Cloud.
@@ -1481,6 +1486,13 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 				if delancey.Health(container.Address, time.Millisecond*70) == nil {
 					break
 				}
+			}
+
+			// Restrict instance access to collaborator if IP specified.
+			if container.CollaboratorIP != "" {
+				instanceID := container.Instance.InstanceID
+				gcloudC.RestrictInstanceToIPs(instanceID, fmt.Sprintf("network-%s", instanceID),
+					[]string{container.CollaboratorIP})
 			}
 
 			err := delancey.Create(container)
