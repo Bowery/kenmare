@@ -5,6 +5,7 @@ package kenmare
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -101,6 +102,73 @@ func DeleteContainer(containerID string) error {
 	}
 
 	return nil
+}
+
+// GetCollaborators retrieves a list of collaborators for a
+// specific environment.
+func GetCollaborators(envID string) ([]*schemas.Collaborator, error) {
+	if envID == "" {
+		return nil, errors.New("environment id required")
+	}
+
+	addr := fmt.Sprintf("%s/environments/%s/collaborators", config.KenmareAddr, envID)
+	res, err := http.Get(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var resBody requests.CollaboratorsRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		return nil, err
+	}
+
+	if resBody.Status != requests.StatusFound {
+		return nil, &resBody
+	}
+
+	return resBody.Collaborators, nil
+}
+
+// UpdateCollaborator requests kenmare to update or create
+// a collaborator for a specific environment. If the quota for
+// collaborators on the environment has been met, and error
+// will be thrown.
+func UpdateCollaborator(envID string, collaborator *schemas.Collaborator) (*schemas.Collaborator, error) {
+	if envID == "" {
+		return nil, errors.New("environment id required")
+	}
+
+	var data bytes.Buffer
+	encoder := json.NewEncoder(&data)
+	err := encoder.Encode(collaborator)
+	if err != nil {
+		return nil, err
+	}
+
+	addr := fmt.Sprintf("%s/environments/%s/collaborators", config.KenmareAddr, envID)
+	req, err := http.NewRequest("PUT", addr, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var resBody requests.CollaboratorRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+
+	if resBody.Status != requests.StatusUpdated {
+		return nil, &resBody
+	}
+
+	return resBody.Collaborator, nil
 }
 
 // UpdateImage requests kenmare to update an image and notify

@@ -16,6 +16,7 @@ import (
 var (
 	testImageID     = "123"
 	testContainerID = "456"
+	testEnvID       = "789"
 	renderer        = render.New(render.Options{
 		IndentJSON:    true,
 		IsDevelopment: true,
@@ -88,5 +89,59 @@ func TestUpdateImageSuccess(t *testing.T) {
 func testUpdateImageHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
 	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.StatusUpdated,
+	})
+}
+
+func TestGetCollaboratorsSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(testGetCollaboratorsHandlerSuccess))
+	defer server.Close()
+	config.KenmareAddr = server.URL
+
+	collaborators, err := GetCollaborators(testEnvID)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(collaborators) <= 0 {
+		t.Error("should have found collaborators")
+	}
+}
+
+func testGetCollaboratorsHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status": requests.StatusFound,
+		"collaborators": []*schemas.Collaborator{
+			&schemas.Collaborator{
+				ID:   "1",
+				Name: "Steve",
+			},
+		},
+	})
+}
+
+func TestUpdateCollaboratorSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(testUpdateCollaboratorHandlerSuccess))
+	defer server.Close()
+	config.KenmareAddr = server.URL
+
+	collaborator := &schemas.Collaborator{
+		ID:      "1",
+		Name:    "Steve",
+		MACAddr: "01:23:45:67:89",
+	}
+
+	_, err := UpdateCollaborator(testEnvID, collaborator)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testUpdateCollaboratorHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status": requests.StatusUpdated,
+		"collaborator": &schemas.Collaborator{
+			ID:   "1",
+			Name: "Steve",
+		},
 	})
 }

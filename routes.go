@@ -216,6 +216,26 @@ func deleteInstance(instance *schemas.Instance) error {
 	return nil
 }
 
+// getCollaboratorsByEnvIDHandler retrieves a list of collaborators for a
+// specific environment.
+func getCollaboratorsByEnvIDHandler(rw http.ResponseWriter, req *http.Request) {
+	// todo(steve)
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":        requests.StatusFound,
+		"collaborators": []*schemas.Collaborator{},
+	})
+}
+
+// updateCollaboratorByEnvID creates/updates a collaborator for a
+// specific environment.
+func updateCollaboratorByEnvID(rw http.ResponseWriter, req *http.Request) {
+	// todo(steve)
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":       requests.StatusUpdated,
+		"collaborator": schemas.Collaborator{},
+	})
+}
+
 // createContainerHandler creates a container on an available Google Cloud instance.
 // If provided, the container created will be based on the `imageID`. During
 // the creation process, if Kenmare detects the instance pool is below
