@@ -32,6 +32,10 @@ import (
 var routes = []web.Route{
 	{"GET", "/", indexHandler, false},
 	{"GET", "/healthz", healthzHandler, false},
+	{"GET", "/environments/{id}", getEnvironmentByIDHandler, false},
+	{"PUT", "/environments/{id}", updateEnvironmentByIDHandler, false},
+	{"GET", "/environments/{id}/collaborators", getCollaboratorsByEnvIDHandler, false},
+	{"PUT", "/environments/{id}/collaborators", updateCollaboratorByEnvID, false},
 	{"POST", "/containers", createContainerHandler, false},
 	{"GET", "/containers/{id}", getContainerByIDHandler, false},
 	{"PUT", "/containers/{id}/save", saveContainerByIDHandler, false},
@@ -198,22 +202,20 @@ func getInstance() (*schemas.Instance, error) {
 	return &instance, nil
 }
 
-func deleteInstance(instance *schemas.Instance) error {
-	start := time.Now()
-	// Add the instance back to the spare pool in the database.
-	_, err := db.Put(schemas.InstancesCollection, instance.ID, instance)
-	if err != nil {
-		return err
-	}
+// getEnvironmentByIDHandler gets an environment and associated information.
+func getEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	// todo(steve)
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status": requests.StatusFound,
+	})
+}
 
-	// Re-tag the instance 'spare' on EC2.
-	err = gcloudC.TagInstance(instance.InstanceID, []string{"spare"})
-	if err != nil {
-		return err
-	}
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	go stathat.PostEZValue("kenmare return instance to pool time", config.StatHatKey, elapsed)
-	return nil
+// updateEnvironmentByIDHandler updates an environment.
+func updateEnvironmentByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	// todo(steve)
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status": requests.StatusSuccess,
+	})
 }
 
 // getCollaboratorsByEnvIDHandler retrieves a list of collaborators for a
