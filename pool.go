@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math/big"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/Bowery/delancey/delancey"
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/schemas"
-	"github.com/sjkaliski/go/src/crypto/rand"
 	"github.com/stathat/go"
 )
 
