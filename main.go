@@ -13,8 +13,8 @@ import (
 	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/gcloud"
 	"github.com/Bowery/gopackages/rollbar"
-	"github.com/Bowery/gopackages/slack"
 	"github.com/Bowery/gopackages/web"
+	"github.com/Bowery/slack"
 	"github.com/orchestrate-io/gorc"
 	"github.com/timonv/pusher"
 )
