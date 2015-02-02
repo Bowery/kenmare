@@ -842,7 +842,8 @@ func TestCreateContainerSuccessful(t *testing.T) {
 	defer server.Close()
 
 	containerReq := &requests.ContainerReq{
-		ImageID: "some-image-id",
+		ImageID:        "some-image-id",
+		CollaboratorIP: "",
 	}
 
 	var body bytes.Buffer
