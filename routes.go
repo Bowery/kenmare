@@ -110,14 +110,45 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	imageID := body.ImageID
-	if imageID == "" {
-		imageID = uuid.New()
+	// Verify environment & collaborator.
+	var environment schemas.Environment
+	var collaborator schemas.Collaborator
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+
+	}()
+
+	go func() {
+
+	}()
+
+	wg.Wait()
+
+	if body.ImageID == "" {
+		environment = schemas.Environment{
+			ID:            uuid.New(),
+			CreatedAt:     time.Now(),
+			Licenses:      0,
+			Collaborators: []*schemas.Collaborator{},
+		}
+		_, err = db.Put(schemas.EnvironmentsCollection, environment.ID, environment)
+	} else {
+		environment, err = getEnvironment(body.ImageID)
+	}
+
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
 	}
 
 	container := &schemas.Container{
 		ID:        uuid.New(),
-		ImageID:   imageID,
+		ImageID:   environment.ID,
 		LocalPath: body.LocalPath,
 		CreatedAt: time.Now(),
 	}
@@ -458,6 +489,22 @@ func getTarHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// getEnvironment retrieves an environment from Orchestrate.
+func getEnvironment(id string) (schemas.Environment, error) {
+	envData, err := db.Get(schemas.EnvironmentsCollection, id)
+	if err != nil {
+		return schemas.Environment{}, err
+	}
+
+	environment := schemas.Environment{}
+	err = envData.Value(&environment)
+	if err != nil {
+		return schemas.Environment{}, err
+	}
+
+	return environment, nil
+}
+
 // getContainer retrieves a container from Orchestrate.
 func getContainer(id string) (schemas.Container, error) {
 	start := time.Now()
@@ -474,6 +521,22 @@ func getContainer(id string) (schemas.Container, error) {
 	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
 	go stathat.PostEZValue("kenmare get container from orchestrate time", config.StatHatKey, elapsed)
 	return container, nil
+}
+
+// getContainer retrieves a collaborator from Orchestrate.
+func getCollaborator(id string) (schemas.Collaborator, error) {
+	collaboratorData, err := db.Get(schemas.CollaboratorsCollection, id)
+	if err != nil {
+		return schemas.Collaborator{}, err
+	}
+
+	collaborator := schemas.Collaborator{}
+	err = collaboratorData.Value(&collaborator)
+	if err != nil {
+		return schemas.Collaborator{}, err
+	}
+
+	return collaborator, nil
 }
 
 func searchContainers(query string) ([]schemas.Container, error) {
