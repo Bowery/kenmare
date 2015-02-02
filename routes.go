@@ -1878,7 +1878,7 @@ func exportHandler(rw http.ResponseWriter, req *http.Request) {
 	script := `#!/bin/bash
 set -e
 mp={{.ImageID}} # mount point
-curl -L -f {{.Host}}/tar/{{.ImageID}} | tar -xzvf -
+curl -L -f {{.Host}}/{{.ImageID}} | tar -xzvf -
 sudo mkdir -p /tmp/${mp}
 hash=$(ls -d */ | sed 's|/||g')
 sudo tar xvf ${hash}/layer.tar -C /tmp/${mp}
@@ -1902,7 +1902,7 @@ echo "To use, run 'sudo chroot /tmp/${mp}/ /bin/bash'`
 	var buf bytes.Buffer
 
 	err = t.Execute(&buf, map[string]string{
-		"Host":    config.KenmareAddr,
+		"Host":    config.ExportAddr,
 		"ImageID": imageID,
 	})
 	if err != nil {
