@@ -4,12 +4,10 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
-	"math/big"
 	"net/http"
 	"sync"
 	"time"
@@ -46,174 +44,12 @@ var renderer = render.New(render.Options{
 	IsDevelopment: true,
 })
 
-// Minimum number of instances to have in the spare pool
-const (
-	InstancePoolMin = 20
-)
-
 func indexHandler(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(rw, "Bowery Environment Manager")
 }
 
 func healthzHandler(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(rw, "ok")
-}
-
-// allocateInstances creates instances on EC2 using the Bowery account,
-// and inserts corresponding records in the instances collection.
-func allocateInstances(num int) error {
-	var err error
-	var wg sync.WaitGroup
-
-	// Create instances in parallel
-	batchstart := time.Now()
-	for i := 0; i < num; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			instancestart := time.Now()
-
-			instance := &schemas.Instance{
-				ID:         uuid.New(),
-				InstanceID: fmt.Sprintf("bowery-%s", uuid.New()),
-				Provider:   schemas.ProviderGoogleCloudPlatform,
-			}
-
-			fmt.Println("Creating instance", instance.InstanceID)
-			e := gcloudC.CreateInstance(instance.InstanceID, config.BoweryBaseImage, "n1-standard-1", "http://bowery.sh/startup.sh")
-			if e != nil {
-				err = e
-				return
-			}
-
-			fmt.Println("Checking instance", instance.InstanceID)
-			addr, e := gcloudC.CheckInstance(instance.InstanceID)
-			if e != nil {
-				err = e
-				return
-			}
-			instance.Address = addr
-
-			fmt.Println("Tagging instance", instance.InstanceID)
-			e = gcloudC.TagInstance(instance.InstanceID, []string{"spare"})
-			if e != nil {
-				err = e
-				return
-			}
-
-			fmt.Println("Saving instance", instance.InstanceID)
-			_, e = db.Put(schemas.InstancesCollection, instance.ID, instance)
-			if e != nil {
-				err = e
-				return
-			}
-			elapsed := float64(time.Since(instancestart).Nanoseconds() / 1000000)
-			go stathat.PostEZValue("kenmare allocate instance time", config.StatHatKey, elapsed)
-		}()
-	}
-
-	// Wait for all instances to be created and database is current
-	wg.Wait()
-	elapsed := float64(time.Since(batchstart).Nanoseconds() / 1000000)
-	go stathat.PostEZValue("kenmare allocate batch instances time", config.StatHatKey, elapsed)
-	return err
-}
-
-func getInstance() (*schemas.Instance, error) {
-	// Get list of instances from instance collection.
-	start := time.Now()
-	results, totalCount, err := search(schemas.InstancesCollection, "*", true)
-	if err != nil {
-		return nil, err
-	}
-	refresh := false
-	refreshCheck := false
-
-	// Check total for need to add to the pool.
-	if totalCount == 0 {
-		err = allocateInstances(20)
-		if err != nil {
-			return nil, err
-		}
-		refresh = true
-	} else if totalCount <= 15 {
-		go allocateInstances(20)
-		refresh = true
-		refreshCheck = true
-	}
-
-	if refresh {
-		results, _, err = search(schemas.InstancesCollection, "*", true)
-		if err != nil {
-			return nil, err
-		}
-	}
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	go stathat.PostEZValue("kenmare check instance pool time", config.StatHatKey, elapsed)
-
-	// Fetch a current list of instances from the database.
-	start = time.Now()
-	instances := make([]schemas.Instance, len(results))
-	for i, result := range results {
-		err := result.Value(&instances[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
-	go stathat.PostEZValue("kenmare get instance list time", config.StatHatKey, elapsed)
-
-	// Choose a random instance from the database, remove it and return
-	// that to the client.
-	start = time.Now()
-	num, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
-	if err != nil {
-		return nil, err
-	}
-
-	instance := instances[num.Int64()]
-	err = db.Delete(schemas.InstancesCollection, instance.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	if !refresh || refreshCheck {
-		err = delancey.Health(instance.Address, time.Millisecond*70)
-		if err != nil {
-			return getInstance()
-		}
-	}
-
-	// Update the status tag for the now-used instance.
-	go func() {
-		err = gcloudC.TagInstance(instance.InstanceID, []string{"live"})
-		if err != nil {
-			fmt.Println(err)
-		}
-		return
-	}()
-	elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
-	go stathat.PostEZValue("kenmare get instance from pool time", config.StatHatKey, elapsed)
-	return &instance, nil
-}
-
-func deleteInstance(instance *schemas.Instance) error {
-	start := time.Now()
-	// Add the instance back to the spare pool in the database.
-	_, err := db.Put(schemas.InstancesCollection, instance.ID, instance)
-	if err != nil {
-		return err
-	}
-
-	// Re-tag the instance 'spare' on EC2.
-	err = gcloudC.TagInstance(instance.InstanceID, []string{"spare"})
-	if err != nil {
-		return err
-	}
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	go stathat.PostEZValue("kenmare return instance to pool time", config.StatHatKey, elapsed)
-	return nil
 }
 
 // createContainerHandler creates a container on an available Google Cloud instance.
@@ -248,7 +84,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" {
 		start := time.Now()
 		go pusherC.Publish("instance:0", "progress", fmt.Sprintf("container-%s", container.ID))
-		instance, err := getInstance()
+		instance, err := ip.Get()
 		if err != nil {
 			data, _ := json.Marshal(map[string]string{"error": err.Error()})
 			go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
@@ -424,7 +260,7 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 			start = time.Now()
 			log.Println("calling delete instance")
-			err = deleteInstance(container.Instance)
+			err = ip.Remove(container.Instance)
 			if err != nil {
 				// TODO: handle error
 				fmt.Println(err)
