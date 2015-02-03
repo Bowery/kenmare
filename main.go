@@ -5,32 +5,22 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
-	"github.com/Bowery/gopackages/email"
 	"github.com/Bowery/gopackages/gcloud"
-	"github.com/Bowery/gopackages/rollbar"
 	"github.com/Bowery/gopackages/web"
-	"github.com/Bowery/slack"
 	"github.com/orchestrate-io/gorc"
 	"github.com/timonv/pusher"
 )
 
 var (
-	awsC, _     = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
-	gcloudC     *gcloud.Client
-	rollbarC    *rollbar.Client
-	pusherC     *pusher.Client
-	slackC      *slack.Client
-	emailClient *email.Client
-	dir         string
-	staticDir   string
-	db          *gorc.Client
-	env         string
-	port        string
+	awsC, _ = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
+	gcloudC *gcloud.Client
+	pusherC *pusher.Client
+	db      *gorc.Client
+	env     string
+	port    string
 )
 
 func main() {
@@ -39,12 +29,7 @@ func main() {
 	flag.Parse()
 
 	gcloudC, _ = gcloud.NewClient(config.GoogleCloudProjectID, config.GoogleCloudEmail, []byte(config.GoogleCloudPrivateKey))
-	rollbarC = rollbar.NewClient(config.RollbarToken, env)
 	pusherC = pusher.NewClient(config.PusherAppID, config.PusherKey, config.PusherSecret)
-	emailClient = email.NewClient()
-	slackC = slack.NewClient(config.SlackToken)
-	dir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	staticDir = filepath.Join(dir, "static")
 	orchestrateKey := config.OrchestrateDevKey
 	if env == "production" {
 		orchestrateKey = config.OrchestrateProdKey
@@ -58,6 +43,6 @@ func main() {
 		new(web.GzipHandler),
 		&web.StatHandler{Key: config.StatHatKey, Name: "kenmare"},
 	}, routes)
-	server.AuthHandler = &web.AuthHandler{Auth: authHandler}
+	server.AuthHandler = &web.AuthHandler{Auth: web.DefaultAuthHandler}
 	server.ListenAndServe()
 }
