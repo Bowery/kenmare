@@ -30,6 +30,7 @@ import (
 var routes = []web.Route{
 	{"GET", "/", indexHandler, false},
 	{"GET", "/healthz", healthzHandler, false},
+	{"PUT", "/projects/{id}/collaborators", updateCollaboratorByProjectID, false},
 	{"POST", "/containers", createContainerHandler, false},
 	{"GET", "/containers/{id}", getContainerByIDHandler, false},
 	{"PUT", "/containers/{id}/save", saveContainerByIDHandler, false},
@@ -50,6 +51,16 @@ func indexHandler(rw http.ResponseWriter, req *http.Request) {
 
 func healthzHandler(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(rw, "ok")
+}
+
+// updateCollaboratorByProjectID creates/updates a collaborator for a
+// specific project.
+func updateCollaboratorByProjectID(rw http.ResponseWriter, req *http.Request) {
+	// todo(steve)
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":       requests.StatusUpdated,
+		"collaborator": schemas.Collaborator{},
+	})
 }
 
 // createContainerHandler creates a container on an available Google Cloud instance.
