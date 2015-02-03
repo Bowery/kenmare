@@ -5,6 +5,7 @@ package kenmare
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -153,4 +154,43 @@ func Export(imageID string) (*requests.ExportRes, error) {
 	}
 
 	return &resBody, nil
+}
+
+// UpdateCollaborator requests kenmare to update or create
+// a collaborator for a specific project. If the quota for
+// collaborators on the project has been met, and error
+// will be thrown.
+func UpdateCollaborator(projectID string, collaborator *schemas.Collaborator) (*schemas.Collaborator, error) {
+	if projectID == "" {
+		return nil, errors.New("project id required")
+	}
+
+	var data bytes.Buffer
+	encoder := json.NewEncoder(&data)
+	err := encoder.Encode(collaborator)
+	if err != nil {
+		return nil, err
+	}
+
+	addr := fmt.Sprintf("%s/projects/%s/collaborators", config.KenmareAddr, projectID)
+	req, err := http.NewRequest("PUT", addr, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var resBody requests.CollaboratorRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+
+	if resBody.Status != requests.StatusUpdated {
+		return nil, &resBody
+	}
+
+	return resBody.Collaborator, nil
 }
