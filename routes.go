@@ -14,8 +14,6 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/Bowery/delancey/delancey"
 	"github.com/Bowery/gopackages/config"
-	"github.com/Bowery/gopackages/docker"
-	"github.com/Bowery/gopackages/docker/quay"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/Bowery/gopackages/util"
@@ -25,6 +23,30 @@ import (
 	"github.com/stathat/go"
 	"github.com/unrolled/render"
 )
+
+// exportScript is used when exporting an environment.
+const exportScript = `#!/bin/bash
+set -e
+
+id="{{.ImageID}}"
+mp="/tmp/${id}" # Mount point
+\mkdir -p "${id}"
+\cd "${id}"
+\curl -L -f "{{.Host}}/${id}" | \tar xzf -
+sudo mkdir -p "${mp}"
+hash="$(\ls -d */ | \sed 's|/||g')"
+sudo tar xf "${hash}/layer.tar" -C "${mp}"
+sudo mkdir -p "${mp}/"{proc,dev/{,pts},sys}
+sudo mount -o bind /proc "${mp}/proc"
+sudo mount -o bind /dev "${mp}/dev"
+sudo mount -o bind /dev/pts "${mp}/dev/pts"
+sudo mount -o bind /sys "${mp}/sys"
+sudo cp /etc/resolv.conf "${mp}/etc/resolv.conf"
+\cd ..
+sudo rm -rf "${id}"
+
+echo "To use, run 'sudo chroot \"${mp}\" /bin/bash'"
+echo "To remove, run 'sudo umount -R \"${mp}/\"{proc,dev,sys}'"`
 
 var routes = []web.Route{
 	{"GET", "/", indexHandler, false},
@@ -36,7 +58,6 @@ var routes = []web.Route{
 	{"DELETE", "/containers/{id}", removeContainerByIDHandler, false},
 	{"PUT", "/images/{id}", updateImageByIDHandler, false},
 	{"GET", "/export/{imageID}", exportHandler, false},
-	{"GET", "/tar/{imageID}", getTarHandler, false},
 }
 
 var renderer = render.New(render.Options{
@@ -323,26 +344,12 @@ func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// exportHandler generates the export scripts for an image.
 func exportHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	imageID := vars["imageID"]
 
-	script := `#!/bin/bash
-set -e
-mp={{.ImageID}} # mount point
-curl -L -f {{.Host}}/{{.ImageID}} | tar -xzvf -
-sudo mkdir -p /tmp/${mp}
-hash=$(ls -d */ | sed 's|/||g')
-sudo tar xvf ${hash}/layer.tar -C /tmp/${mp}
-sudo mkdir -p /tmp/${mp}/proc /tmp/${mp}/dev /tmp/${mp}/dev/pts /tmp/${mp}/sys /tmp/${mp}/etc
-sudo mount -o bind /proc /tmp/${mp}/proc
-sudo mount -o bind /dev /tmp/${mp}/dev
-sudo mount -o bind /dev/pts /tmp/${mp}/dev/pts
-sudo mount -o bind /sys /tmp/${mp}/sys
-sudo cp /etc/resolv.conf /tmp/${mp}/etc/resolv.conf
-echo "To use, run 'sudo chroot /tmp/${mp}/ /bin/bash'`
-
-	t, err := template.New("script").Parse(script)
+	t, err := template.New("script").Parse(exportScript)
 	if err != nil {
 		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
 			"status": requests.StatusFailed,
@@ -350,7 +357,6 @@ echo "To use, run 'sudo chroot /tmp/${mp}/ /bin/bash'`
 		})
 		return
 	}
-
 	var buf bytes.Buffer
 
 	err = t.Execute(&buf, map[string]string{
@@ -366,25 +372,13 @@ echo "To use, run 'sudo chroot /tmp/${mp}/ /bin/bash'`
 	}
 
 	res := requests.ExportRes{
-		Docker: fmt.Sprintf("curl -L -f %s/tar/%s | docker load", config.KenmareAddr, imageID),
+		Docker: fmt.Sprintf("curl -L -f %s/%s | docker load", config.ExportAddr, imageID),
 		Shell:  buf.String(),
 	}
 	res.Res = new(requests.Res)
 	res.Status = requests.StatusSuccess
 
 	renderer.JSON(rw, http.StatusOK, res)
-}
-
-func getTarHandler(rw http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	imageID := vars["imageID"]
-
-	err := quay.SquashImage(docker.DefaultAuth, config.DockerBaseImage+":"+imageID, rw)
-	if err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write([]byte(err.Error()))
-		return
-	}
 }
 
 // getContainer retrieves a container from Orchestrate.
