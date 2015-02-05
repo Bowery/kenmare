@@ -16,6 +16,7 @@ import (
 	"github.com/stathat/go"
 )
 
+// Defaults for pool sizes.
 const (
 	InstancePoolMin         = 20
 	IntancePoolMinThreshold = 15
