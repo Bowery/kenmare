@@ -9,7 +9,6 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -291,7 +290,7 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 // updateImageByIDHandler notifies clients using the image id that there's been
-// an update, and tells all Delancey instances to pull the image down.
+// an update.
 func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// This route can't do anything in the test env.
 	if env == "testing" {
@@ -303,8 +302,7 @@ func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	imageID := vars["id"]
 
-	// Get all containers here to publish ones with matching image ids, and later
-	// to get running instances.
+	// Get all containers here to publish ones with matching image ids.
 	containers, err := searchContainers("*")
 	if err != nil {
 		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
@@ -318,44 +316,6 @@ func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		if container.ImageID == imageID {
 			go pusherC.Publish("updated", "update", fmt.Sprintf("container-%s", container.ID))
 		}
-	}
-
-	instances, err := searchInstances("*")
-	if err != nil {
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
-	}
-
-	for _, container := range containers {
-		instances = append(instances, *container.Instance)
-	}
-	var wg sync.WaitGroup
-	var m sync.Mutex
-
-	for _, instance := range instances {
-		wg.Add(1)
-		go func(inst schemas.Instance) {
-			defer wg.Done()
-
-			e := delancey.PullImage(inst.Address, imageID)
-			if e != nil {
-				m.Lock()
-				err = e
-				m.Unlock()
-			}
-		}(instance)
-	}
-
-	wg.Wait()
-	if err != nil {
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
-		return
 	}
 
 	renderer.JSON(rw, http.StatusOK, map[string]string{
