@@ -19,7 +19,6 @@ var (
 	gcloudC *gcloud.Client
 	pusherC *pusher.Client
 	db      *gorc.Client
-	ip      *InstancePool
 	env     string
 	port    string
 )
@@ -36,7 +35,6 @@ func main() {
 		orchestrateKey = config.OrchestrateProdKey
 	}
 	db = gorc.NewClient(orchestrateKey)
-	ip = &InstancePool{}
 
 	fmt.Println("Firing up Kenmare in", env, "environment...")
 	server := web.NewServer(port, []web.Handler{

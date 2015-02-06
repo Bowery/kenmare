@@ -14,6 +14,11 @@ import (
 	"github.com/Bowery/gopackages/schemas"
 )
 
+// Errors that may occur.
+var (
+	ErrNoInstances = errors.New("There are no instances available right now. Please try again")
+)
+
 // CreateContainer requests kenmare to create a new container.
 func CreateContainer(imageID, localPath string) (*schemas.Container, error) {
 	var data bytes.Buffer
@@ -42,6 +47,11 @@ func CreateContainer(imageID, localPath string) (*schemas.Container, error) {
 	}
 
 	if resBody.Status != requests.StatusCreated {
+		// If the error matches return var.
+		if resBody.Error() == ErrNoInstances.Error() {
+			return nil, ErrNoInstances
+		}
+
 		return nil, resBody
 	}
 
