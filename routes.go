@@ -4,10 +4,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/Bowery/gopackages/util"
 	"github.com/Bowery/gopackages/web"
+	"github.com/Bowery/kenmare/kenmare"
 	"github.com/gorilla/mux"
 	"github.com/orchestrate-io/gorc"
 	"github.com/stathat/go"
@@ -113,9 +116,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Get the instance to use from Google Cloud.
 	if env != "testing" {
-		start := time.Now()
-		go pusherC.Publish("instance:0", "progress", fmt.Sprintf("container-%s", container.ID))
-		instance, err := ip.Get()
+		instance, err := useRandomInstance()
 		if err != nil {
 			data, _ := json.Marshal(map[string]string{"error": err.Error()})
 			go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
@@ -125,11 +126,9 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			})
 			return
 		}
-		go pusherC.Publish("instance:1", "progress", fmt.Sprintf("container-%s", container.ID))
+
 		container.Instance = instance
 		container.Address = instance.Address
-		elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-		go stathat.PostEZValue("kenmare get instance overall time", config.StatHatKey, elapsed)
 	}
 
 	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
@@ -290,13 +289,13 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 			go stathat.PostEZValue("kenmare remove container by id delancey request time", config.StatHatKey, elapsed)
 
 			start = time.Now()
-			log.Println("calling delete instance")
-			err = ip.Remove(container.Instance)
+			log.Println("putting instance in collection")
+			_, err = db.Put(schemas.InstancesCollection, container.Instance.ID, container.Instance)
 			if err != nil {
 				// TODO: handle error
 				fmt.Println(err)
 			}
-			log.Println("successfully deleted")
+			log.Println("successfully stored instance")
 			elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
 			go stathat.PostEZValue("kenmare remove container by id delete instance time", config.StatHatKey, elapsed)
 		}()
@@ -397,6 +396,40 @@ func getContainer(id string) (schemas.Container, error) {
 	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
 	go stathat.PostEZValue("kenmare get container from orchestrate time", config.StatHatKey, elapsed)
 	return container, nil
+}
+
+// useRandomInstance retrieves an instance to use removing it from the
+// instances collection.
+func useRandomInstance() (*schemas.Instance, error) {
+	results, totalCount, err := search(schemas.InstancesCollection, "*", true)
+	if err != nil {
+		return nil, err
+	}
+
+	// If none exist, some will be created by the cron job.
+	if totalCount <= 0 {
+		return nil, kenmare.ErrNoInstances
+	}
+
+	// Get random instance from the list of results.
+	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(results))))
+	if err != nil {
+		return nil, err
+	}
+
+	instance := new(schemas.Instance)
+	err = results[idx.Int64()].Value(instance)
+	if err != nil {
+		return nil, err
+	}
+
+	// Delete the instance from the collection so it can't be used.
+	err = db.Delete(schemas.InstancesCollection, instance.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return instance, nil
 }
 
 func searchContainers(query string) ([]schemas.Container, error) {
