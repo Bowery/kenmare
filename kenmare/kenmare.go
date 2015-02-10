@@ -166,6 +166,32 @@ func Export(imageID string) (*requests.ExportRes, error) {
 	return &resBody, nil
 }
 
+// GetProject requests kenmare for a project.
+func GetProject(id string) (*schemas.Project, error) {
+	if id == "" {
+		return nil, errors.New("id required")
+	}
+
+	addr := fmt.Sprintf("%s/projects/%s", config.KenmareAddr, id)
+	res, err := http.Get(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	var resBody requests.ProjectRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		return nil, err
+	}
+
+	if resBody.Status != requests.StatusFound {
+		return nil, &resBody
+	}
+
+	return resBody.Project, nil
+}
+
 // UpdateCollaborator requests kenmare to update or create
 // a collaborator for a specific project. If the quota for
 // collaborators on the project has been met, and error

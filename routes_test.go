@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"code.google.com/p/go-uuid/uuid"
+
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
@@ -16,6 +18,7 @@ import (
 )
 
 var (
+	testImageID      = uuid.New()
 	createdContainer *schemas.Container
 )
 
@@ -29,7 +32,7 @@ func TestCreateContainerSuccessful(t *testing.T) {
 	defer server.Close()
 
 	containerReq := &requests.ContainerReq{
-		ImageID: "some-image-id",
+		ImageID: testImageID,
 	}
 
 	var body bytes.Buffer
@@ -173,6 +176,78 @@ func TestRemoveContainerBadRequest(t *testing.T) {
 
 	if res.StatusCode != http.StatusBadRequest {
 		t.Error("unexpected status returned", res.StatusCode)
+	}
+}
+
+func TestUpdateCollaboratorByProjectIDSuccessful(t *testing.T) {
+	server := startServer()
+	defer server.Close()
+
+	collaborator := &schemas.Collaborator{
+		Name:    "Drake",
+		Email:   "drizzy@bowery.io",
+		MACAddr: "30:52:my:ci:ty",
+	}
+
+	var data bytes.Buffer
+	encoder := json.NewEncoder(&data)
+	err := encoder.Encode(collaborator)
+	if err != nil {
+		t.Error(err)
+	}
+
+	addr := fmt.Sprintf("%s/projects/%s/collaborators", server.URL, createdContainer.ImageID)
+	req, err := http.NewRequest("PUT", addr, &data)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	var resBody requests.CollaboratorRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resBody.Status != requests.StatusUpdated {
+		t.Error(resBody.Error)
+	}
+}
+
+func TestGetProjectByIDSuccessful(t *testing.T) {
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/projects/%s", server.URL, createdContainer.ImageID)
+	res, err := http.Get(addr)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	var resBody requests.ProjectRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resBody.Status != requests.StatusFound {
+		t.Error(resBody.Error)
+	}
+
+	if resBody.Project.ID != createdContainer.ImageID {
+		t.Error("unexpected result", "retrieved project with incorrect id")
+	}
+
+	if resBody.Project.Collaborators[0].Name != "Drake" {
+		t.Error("unexpected result", "could not find correct collaborator")
 	}
 }
 

@@ -92,6 +92,30 @@ func testUpdateImageHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func TestGetProjectSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(testGetProjectHandlerSuccess))
+	defer server.Close()
+	config.KenmareAddr = server.URL
+
+	project, err := GetProject("1")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if project.ID != "1" {
+		t.Error("unexpected result")
+	}
+}
+
+func testGetProjectHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status": requests.StatusFound,
+		"project": schemas.Project{
+			ID: "1",
+		},
+	})
+}
+
 func TestUpdateCollaboratorSuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(testUpdateCollaboratorHandlerSuccess))
 	defer server.Close()
@@ -112,7 +136,7 @@ func TestUpdateCollaboratorSuccess(t *testing.T) {
 func testUpdateCollaboratorHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
 	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status": requests.StatusUpdated,
-		"collaborator": &schemas.Collaborator{
+		"collaborator": schemas.Collaborator{
 			ID:   "1",
 			Name: "Steve",
 		},

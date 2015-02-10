@@ -53,7 +53,8 @@ echo "To remove, run 'sudo umount -R \"${mp}/\"{proc,dev,sys}'"`
 var routes = []web.Route{
 	{"GET", "/", indexHandler, false},
 	{"GET", "/healthz", healthzHandler, false},
-	{"PUT", "/projects/{id}/collaborators", updateCollaboratorByProjectID, false},
+	{"GET", "/projects/{id}", getProjectByIDHandler, false},
+	{"PUT", "/projects/{id}/collaborators", updateCollaboratorByProjectIDHandler, false},
 	{"POST", "/containers", createContainerHandler, false},
 	{"GET", "/containers/{id}", getContainerByIDHandler, false},
 	{"PUT", "/containers/{id}/save", saveContainerByIDHandler, false},
@@ -75,13 +76,94 @@ func healthzHandler(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(rw, "ok")
 }
 
+// getProjectByIDHandler gets a project.
+func getProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	project, err := getProject(id)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":  requests.StatusFound,
+		"project": project,
+	})
+}
+
 // updateCollaboratorByProjectID creates/updates a collaborator for a
 // specific project.
-func updateCollaboratorByProjectID(rw http.ResponseWriter, req *http.Request) {
-	// todo(steve)
+func updateCollaboratorByProjectIDHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	projectID := vars["id"]
+
+	var body schemas.Collaborator
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&body)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Get project. If no project is found, create a new one.
+	var project schemas.Project
+	project, err = getProject(projectID)
+	if err != nil {
+		project = schemas.Project{
+			ID:            projectID,
+			CreatedAt:     time.Now(),
+			Licenses:      0,
+			Collaborators: []schemas.Collaborator{},
+		}
+		db.Put(schemas.ProjectsCollection, project.ID, project)
+	}
+
+	// Update collaborator by mac address.
+	collaborator, err := getCollaborator(body.MACAddr)
+	if err != nil {
+		// Assume error is no entry found.
+		collaborator = body
+		collaborator.ID = uuid.New()
+		collaborator.UpdatedAt = time.Now()
+	}
+
+	// In case the user's name/email has changed
+	// update it.
+	collaborator.Name = body.Name
+	collaborator.Email = body.Email
+
+	// Update database.
+	db.Put(schemas.CollaboratorsCollection, collaborator.MACAddr, collaborator)
+
+	// Update project with collaborator.
+	isNewCollaborator := true
+	if len(project.Collaborators) > 0 {
+		for i, c := range project.Collaborators {
+			if c.ID == collaborator.ID {
+				project.Collaborators[i] = collaborator
+				isNewCollaborator = false
+				break
+			}
+		}
+	}
+
+	if isNewCollaborator {
+		project.Collaborators = append(project.Collaborators, collaborator)
+	}
+
+	db.Put(schemas.ProjectsCollection, project.ID, project)
+
 	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.StatusUpdated,
-		"collaborator": schemas.Collaborator{},
+		"collaborator": collaborator,
 	})
 }
 
@@ -360,6 +442,36 @@ func exportHandler(rw http.ResponseWriter, req *http.Request) {
 	res.Status = requests.StatusSuccess
 
 	renderer.JSON(rw, http.StatusOK, res)
+}
+
+func getCollaborator(addr string) (schemas.Collaborator, error) {
+	collaboratorData, err := db.Get(schemas.CollaboratorsCollection, addr)
+	if err != nil {
+		return schemas.Collaborator{}, err
+	}
+
+	collaborator := schemas.Collaborator{}
+	err = collaboratorData.Value(&collaborator)
+	if err != nil {
+		return schemas.Collaborator{}, err
+	}
+
+	return collaborator, nil
+}
+
+func getProject(id string) (schemas.Project, error) {
+	projectData, err := db.Get(schemas.ProjectsCollection, id)
+	if err != nil {
+		return schemas.Project{}, err
+	}
+
+	project := schemas.Project{}
+	err = projectData.Value(&project)
+	if err != nil {
+		return schemas.Project{}, err
+	}
+
+	return project, nil
 }
 
 // getContainer retrieves a container from Orchestrate.
