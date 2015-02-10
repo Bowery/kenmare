@@ -18,7 +18,6 @@ import (
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
-	"github.com/Bowery/gopackages/util"
 	"github.com/Bowery/gopackages/web"
 	"github.com/Bowery/kenmare/kenmare"
 	"github.com/gorilla/mux"
@@ -149,21 +148,22 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
 
 			// Wait till the agent is up and running.
-			var backoff *util.Backoff
-			for {
-				if backoff != nil {
-					if !backoff.Next() {
-						return
-					}
-					<-time.After(backoff.Delay)
-				} else {
-					backoff = util.NewBackoff(0)
-				}
-				log.Println("checking agent availability")
-				if delancey.Health(container.Address, time.Millisecond*70) == nil {
-					break
-				}
-			}
+			// var backoff *util.Backoff
+			// for {
+			// 	if backoff != nil {
+			// 		if !backoff.Next() {
+			// 			return
+			// 		}
+			// 		<-time.After(backoff.Delay)
+			// 	} else {
+			// 		backoff = util.NewBackoff(0)
+			// 	}
+			// 	log.Println("checking agent availability")
+			// 	if delancey.Health(container.Address, time.Millisecond*70) == nil {
+			// 		break
+			// 	}
+			// }
+			log.Println(delancey.Health(container.Address, 100*time.Millisecond))
 
 			err := delancey.Create(container)
 			if err != nil {
