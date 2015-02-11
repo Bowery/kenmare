@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -19,6 +20,7 @@ import (
 
 var (
 	testImageID      = uuid.New()
+	testProject      *schemas.Project
 	createdContainer *schemas.Container
 )
 
@@ -84,30 +86,6 @@ func TestGetContainerSuccessful(t *testing.T) {
 	}
 }
 
-func TestSaveContainerSuccessful(t *testing.T) {
-	if createdContainer == nil {
-		t.Skip("Skipping because save failed")
-	}
-	server := startServer()
-	defer server.Close()
-
-	addr := fmt.Sprintf("%s/containers/%s/save", server.URL, createdContainer.ID)
-	req, err := http.NewRequest("PUT", addr, nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Error(err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		t.Error("unexpected status returned", res.StatusCode)
-	}
-}
-
 func TestUpdateImageSuccessful(t *testing.T) {
 	if createdContainer == nil {
 		t.Skip("Skipping because create failed")
@@ -129,52 +107,6 @@ func TestUpdateImageSuccessful(t *testing.T) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		t.Error("unexpected status returned", res.StatusCode)
-	}
-}
-
-func TestRemoveContainerSuccessful(t *testing.T) {
-	if createdContainer == nil {
-		t.Skip("Skipping because create failed")
-	}
-
-	server := startServer()
-	defer server.Close()
-
-	addr := fmt.Sprintf("%s/containers/%s", server.URL, createdContainer.ID)
-	req, err := http.NewRequest("DELETE", addr, nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Error(err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		t.Error("unexpected status returned", res.StatusCode)
-	}
-}
-
-func TestRemoveContainerBadRequest(t *testing.T) {
-	server := startServer()
-	defer server.Close()
-
-	addr := fmt.Sprintf("%s/containers/%s", server.URL, "random-id")
-	req, err := http.NewRequest("DELETE", addr, nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Error(err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusBadRequest {
 		t.Error("unexpected status returned", res.StatusCode)
 	}
 }
@@ -248,6 +180,206 @@ func TestGetProjectByIDSuccessful(t *testing.T) {
 
 	if resBody.Project.Collaborators[0].Name != "Drake" {
 		t.Error("unexpected result", "could not find correct collaborator")
+	}
+
+	testProject = resBody.Project
+}
+
+func TestUpdateProjectByIDSuccessful(t *testing.T) {
+	testProject.Collaborators[0].Permissions = map[string]bool{}
+	testProject.Collaborators[0].Permissions["canEdit"] = true
+
+	newCollaborator := schemas.Collaborator{
+		Name:    "Lil Wayne",
+		Email:   "tunechi@bowery.io",
+		MACAddr: "po:pb:ot:tl:es",
+	}
+	testProject.Collaborators = append(testProject.Collaborators, newCollaborator)
+
+	server := startServer()
+	defer server.Close()
+
+	var reqBody requests.ProjectReq
+	var data bytes.Buffer
+
+	reqBody.Project = testProject
+	reqBody.MACAddr = "30:52:my:ci:ty"
+	encoder := json.NewEncoder(&data)
+	err := encoder.Encode(reqBody)
+	if err != nil {
+		t.Error(err)
+	}
+
+	addr := fmt.Sprintf("%s/projects/%s", server.URL, testProject.ID)
+	req, err := http.NewRequest("PUT", addr, &data)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var resBody requests.ProjectRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resBody.Status != requests.StatusUpdated {
+		t.Error(resBody.Error)
+	}
+}
+
+func TestUpdateProjectByIDInsufficientPermissions(t *testing.T) {
+	testProject.Collaborators[1].Permissions = map[string]bool{}
+	testProject.Collaborators[1].Permissions["canEdit"] = true
+
+	server := startServer()
+	defer server.Close()
+
+	var reqBody requests.ProjectReq
+	var data bytes.Buffer
+
+	reqBody.Project = testProject
+	reqBody.MACAddr = "po:pb:ot:tl:es"
+	encoder := json.NewEncoder(&data)
+	err := encoder.Encode(reqBody)
+	if err != nil {
+		t.Error(err)
+	}
+
+	addr := fmt.Sprintf("%s/projects/%s", server.URL, testProject.ID)
+	req, err := http.NewRequest("PUT", addr, &data)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var resBody requests.ProjectRes
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resBody.Status == requests.StatusUpdated {
+		t.Error("unexpected status", resBody.Status)
+	}
+
+	if resBody.Error() != "insufficient permissions" {
+		t.Error("unexpected error", resBody.Error())
+	}
+}
+
+func TestSaveContainerSuccessful(t *testing.T) {
+	if createdContainer == nil {
+		t.Skip("Skipping because save failed")
+	}
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s/save?mac_addr=%s", server.URL, createdContainer.ID, url.QueryEscape(testProject.Collaborators[0].MACAddr))
+	req, err := http.NewRequest("PUT", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Error("unexpected status returned", res.StatusCode)
+	}
+}
+
+func TestSaveContainerInsufficientPermissions(t *testing.T) {
+	if createdContainer == nil {
+		t.Skip("Skipping because save failed")
+	}
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s/save?mac_addr=%s", server.URL, createdContainer.ID, url.QueryEscape(testProject.Collaborators[1].MACAddr))
+	req, err := http.NewRequest("PUT", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	var resBody requests.Res
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resBody.Status != requests.StatusFailed {
+		t.Error("unexpected status returned", resBody.Status)
+	}
+
+	if resBody.Error() != "insufficient permissions" {
+		t.Error("unexpected error", resBody.Error())
+	}
+}
+
+func TestRemoveContainerSuccessful(t *testing.T) {
+	if createdContainer == nil {
+		t.Skip("Skipping because create failed")
+	}
+
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s", server.URL, createdContainer.ID)
+	req, err := http.NewRequest("DELETE", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Error("unexpected status returned", res.StatusCode)
+	}
+}
+
+func TestRemoveContainerBadRequest(t *testing.T) {
+	server := startServer()
+	defer server.Close()
+
+	addr := fmt.Sprintf("%s/containers/%s", server.URL, "random-id")
+	req, err := http.NewRequest("DELETE", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusBadRequest {
+		t.Error("unexpected status returned", res.StatusCode)
 	}
 }
 
