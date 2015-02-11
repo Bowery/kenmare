@@ -275,7 +275,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			start := time.Now()
 			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
 
-			err := delancey.Create(container)
+			err := delancey.Create(container, body.Dockerfile)
 			if err != nil {
 				data, _ := json.Marshal(map[string]string{"error": err.Error()})
 				go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))

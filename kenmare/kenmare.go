@@ -20,11 +20,12 @@ var (
 )
 
 // CreateContainer requests kenmare to create a new container.
-func CreateContainer(imageID, localPath string) (*schemas.Container, error) {
+func CreateContainer(imageID, localPath, dockerfile string) (*schemas.Container, error) {
 	var data bytes.Buffer
 	reqBody := requests.ContainerReq{
-		ImageID:   imageID,
-		LocalPath: localPath,
+		ImageID:    imageID,
+		LocalPath:  localPath,
+		Dockerfile: dockerfile,
 	}
 	encoder := json.NewEncoder(&data)
 	err := encoder.Encode(reqBody)
