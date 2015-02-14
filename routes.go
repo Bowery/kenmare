@@ -84,10 +84,7 @@ func getProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	project, err := getProject(id)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -104,10 +101,7 @@ func updateProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// Get project. If no project is found, return error.
 	currentProject, err := getProject(projectID)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -115,10 +109,7 @@ func updateProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	err = decoder.Decode(&body)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -136,10 +127,7 @@ func updateProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// In the future there will be a permission allowing a user
 	// to edit other user's permissions, e.g. an admin.
 	if currentCollaborator.ID == "" || currentProject.CreatorID != currentCollaborator.ID {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  "insufficient permissions",
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "insufficient permissions")
 		return
 	}
 
@@ -149,10 +137,7 @@ func updateProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	currentProject.Collaborators = updatedProject.Collaborators
 	_, err = db.Put(schemas.ProjectsCollection, updatedProject.ID, updatedProject)
 	if err != nil {
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -172,10 +157,7 @@ func updateCollaboratorByProjectIDHandler(rw http.ResponseWriter, req *http.Requ
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -238,10 +220,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&body)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -263,10 +242,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			data, _ := json.Marshal(map[string]string{"error": err.Error()})
 			go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
-			renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-				"status": requests.StatusFailed,
-				"error":  err.Error(),
-			})
+			requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 			return
 		}
 
@@ -276,10 +252,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 
 	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
 	if err != nil {
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -338,10 +311,7 @@ func getContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	container, err := getContainer(containerID)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -358,10 +328,7 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	container, err := getContainer(containerID)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -369,10 +336,7 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// the requesting collaborator has rights to save.
 	project, err := getProject(container.ImageID)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -396,10 +360,7 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// can't save, deny save. If they are the creator skip
 	// or if they can save skip.
 	if !isCreator && !canSave {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  "insufficient permissions",
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "insufficient permissions")
 		return
 	}
 
@@ -430,10 +391,7 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	removestart := time.Now()
 	container, err := getContainer(containerID)
 	if err != nil {
-		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -489,10 +447,7 @@ func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// Get all containers here to publish ones with matching image ids.
 	containers, err := searchContainers("*")
 	if err != nil {
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 		return
 	}
 
@@ -514,10 +469,7 @@ func exportHandler(rw http.ResponseWriter, req *http.Request) {
 
 	t, err := template.New("script").Parse(exportScript)
 	if err != nil {
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 		return
 	}
 	var buf bytes.Buffer
@@ -527,10 +479,7 @@ func exportHandler(rw http.ResponseWriter, req *http.Request) {
 		"ImageID": imageID,
 	})
 	if err != nil {
-		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
-			"status": requests.StatusFailed,
-			"error":  err.Error(),
-		})
+		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 		return
 	}
 
