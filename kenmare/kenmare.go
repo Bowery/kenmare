@@ -59,8 +59,8 @@ func CreateContainer(imageID, localPath string) (*schemas.Container, error) {
 }
 
 // SaveContainer requests kenmare to save a container.
-func SaveContainer(containerID string) error {
-	addr := fmt.Sprintf("%s/containers/%s/save", config.KenmareAddr, containerID)
+func SaveContainer(containerID, macAddr string) error {
+	addr := fmt.Sprintf("%s/containers/%s/save?mac_addr=%s", config.KenmareAddr, containerID, macAddr)
 	req, err := http.NewRequest("PUT", addr, nil)
 	if err != nil {
 		return err
@@ -192,6 +192,46 @@ func GetProject(id string) (*schemas.Project, error) {
 	return resBody.Project, nil
 }
 
+// UpdateProject requests kenmare to update a project.
+func UpdateProject(macAddr string, project *schemas.Project) error {
+	reqBody := &requests.ProjectReq{
+		Project: project,
+		MACAddr: macAddr,
+	}
+
+	var data bytes.Buffer
+	encoder := json.NewEncoder(&data)
+	err := encoder.Encode(reqBody)
+	if err != nil {
+		return err
+	}
+
+	addr := fmt.Sprintf("%s/projects/%s", config.KenmareAddr, project.ID)
+	req, err := http.NewRequest("PUT", addr, &data)
+	if err != nil {
+		return err
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	var resBody requests.Res
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		return err
+	}
+
+	if resBody.Status != requests.StatusUpdated {
+		return &resBody
+	}
+
+	return nil
+}
+
 // UpdateCollaborator requests kenmare to update or create
 // a collaborator for a specific project. If the quota for
 // collaborators on the project has been met, and error
@@ -223,6 +263,9 @@ func UpdateCollaborator(projectID string, collaborator *schemas.Collaborator) (*
 	var resBody requests.CollaboratorRes
 	decoder := json.NewDecoder(res.Body)
 	err = decoder.Decode(&resBody)
+	if err != nil {
+		return nil, err
+	}
 
 	if resBody.Status != requests.StatusUpdated {
 		return nil, &resBody

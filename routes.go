@@ -54,6 +54,7 @@ var routes = []web.Route{
 	{"GET", "/", indexHandler, false},
 	{"GET", "/healthz", healthzHandler, false},
 	{"GET", "/projects/{id}", getProjectByIDHandler, false},
+	{"PUT", "/projects/{id}", updateProjectByIDHandler, false},
 	{"PUT", "/projects/{id}/collaborators", updateCollaboratorByProjectIDHandler, false},
 	{"POST", "/containers", createContainerHandler, false},
 	{"GET", "/containers/{id}", getContainerByIDHandler, false},
@@ -96,6 +97,71 @@ func getProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func updateProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	projectID := vars["id"]
+
+	// Get project. If no project is found, return error.
+	currentProject, err := getProject(projectID)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	var body requests.ProjectReq
+	decoder := json.NewDecoder(req.Body)
+	err = decoder.Decode(&body)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Find collaborator in project.
+	var currentCollaborator schemas.Collaborator
+	for _, c := range currentProject.Collaborators {
+		if c.MACAddr == body.MACAddr {
+			currentCollaborator = c
+			break
+		}
+	}
+
+	// Make sure there is a valid collaborator and that person
+	// is the creator. Only the creator can edit permissions.
+	// In the future there will be a permission allowing a user
+	// to edit other user's permissions, e.g. an admin.
+	if currentCollaborator.ID == "" || currentProject.CreatorID != currentCollaborator.ID {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  "insufficient permissions",
+		})
+		return
+	}
+
+	updatedProject := body.Project
+
+	// Update current project with changes.
+	currentProject.Collaborators = updatedProject.Collaborators
+	_, err = db.Put(schemas.ProjectsCollection, updatedProject.ID, updatedProject)
+	if err != nil {
+		renderer.JSON(rw, http.StatusInternalServerError, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
+		"status":  requests.StatusUpdated,
+		"project": currentProject,
+	})
+}
+
 // updateCollaboratorByProjectID creates/updates a collaborator for a
 // specific project.
 func updateCollaboratorByProjectIDHandler(rw http.ResponseWriter, req *http.Request) {
@@ -126,29 +192,16 @@ func updateCollaboratorByProjectIDHandler(rw http.ResponseWriter, req *http.Requ
 		db.Put(schemas.ProjectsCollection, project.ID, project)
 	}
 
-	// Update collaborator by mac address.
-	collaborator, err := getCollaborator(body.MACAddr)
-	if err != nil {
-		// Assume error is no entry found.
-		collaborator = body
-		collaborator.ID = uuid.New()
-		collaborator.UpdatedAt = time.Now()
-	}
-
-	// In case the user's name/email has changed
-	// update it.
-	collaborator.Name = body.Name
-	collaborator.Email = body.Email
-
-	// Update database.
-	db.Put(schemas.CollaboratorsCollection, collaborator.MACAddr, collaborator)
-
-	// Update project with collaborator.
+	// Create/update entry for collaborator in project.
+	// The only fields that can currently be updated are
+	// name and email.
 	isNewCollaborator := true
 	if len(project.Collaborators) > 0 {
 		for i, c := range project.Collaborators {
-			if c.ID == collaborator.ID {
-				project.Collaborators[i] = collaborator
+			if c.MACAddr == body.MACAddr {
+				project.Collaborators[i].Name = body.Name
+				project.Collaborators[i].Email = body.Email
+				project.Collaborators[i].UpdatedAt = time.Now()
 				isNewCollaborator = false
 				break
 			}
@@ -156,14 +209,23 @@ func updateCollaboratorByProjectIDHandler(rw http.ResponseWriter, req *http.Requ
 	}
 
 	if isNewCollaborator {
-		project.Collaborators = append(project.Collaborators, collaborator)
+		body.ID = uuid.New()
+		body.UpdatedAt = time.Now()
+		body.Permissions = map[string]bool{}
+		project.Collaborators = append(project.Collaborators, body)
+	}
+
+	// If this is a new project, assign the CreatorID as
+	// the requesting collaborator.
+	if isNewCollaborator && len(project.Collaborators) == 1 {
+		project.CreatorID = body.ID
 	}
 
 	db.Put(schemas.ProjectsCollection, project.ID, project)
 
 	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.StatusUpdated,
-		"collaborator": collaborator,
+		"collaborator": body,
 	})
 }
 
@@ -299,6 +361,44 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
 			"status": requests.StatusFailed,
 			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Check project and collaborator settings to make sure
+	// the requesting collaborator has rights to save.
+	project, err := getProject(container.ImageID)
+	if err != nil {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	macAddr := req.URL.Query().Get("mac_addr")
+
+	canSave := false
+	isCreator := false
+	for _, c := range project.Collaborators {
+		if c.MACAddr == macAddr {
+			if c.ID == project.CreatorID {
+				isCreator = true
+			}
+
+			if c.Permissions["canEdit"] {
+				canSave = true
+			}
+		}
+	}
+
+	// If the requesting collaborator is not the creator and
+	// can't save, deny save. If they are the creator skip
+	// or if they can save skip.
+	if !isCreator && !canSave {
+		renderer.JSON(rw, http.StatusBadRequest, map[string]string{
+			"status": requests.StatusFailed,
+			"error":  "insufficient permissions",
 		})
 		return
 	}

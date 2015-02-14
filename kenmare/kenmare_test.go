@@ -46,7 +46,7 @@ func TestSaveContainerSuccess(t *testing.T) {
 	defer server.Close()
 	config.KenmareAddr = server.URL
 
-	err := SaveContainer(testContainerID)
+	err := SaveContainer(testContainerID, "00:00:00:00:00")
 	if err != nil {
 		t.Error(err)
 	}
@@ -113,6 +113,27 @@ func testGetProjectHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
 		"project": schemas.Project{
 			ID: "1",
 		},
+	})
+}
+
+func TestUpdateProjectSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(testUpdateProjectHandlerSuccess))
+	defer server.Close()
+	config.KenmareAddr = server.URL
+
+	project := &schemas.Project{
+		ID: "some-id",
+	}
+
+	err := UpdateProject("aa:bb:cc:dd:ee", project)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func testUpdateProjectHandlerSuccess(rw http.ResponseWriter, req *http.Request) {
+	renderer.JSON(rw, http.StatusOK, map[string]string{
+		"status": requests.StatusUpdated,
 	})
 }
 
