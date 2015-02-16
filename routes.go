@@ -161,17 +161,11 @@ func updateCollaboratorByProjectIDHandler(rw http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	// Get project. If no project is found, create a new one.
-	var project schemas.Project
-	project, err = getProject(projectID)
+	// Get project.
+	project, err := getProject(projectID)
 	if err != nil {
-		project = schemas.Project{
-			ID:            projectID,
-			CreatedAt:     time.Now(),
-			Licenses:      0,
-			Collaborators: []schemas.Collaborator{},
-		}
-		db.Put(schemas.ProjectsCollection, project.ID, project)
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
+		return
 	}
 
 	// Create/update entry for collaborator in project.
@@ -229,9 +223,22 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		imageID = uuid.New()
 	}
 
+	// Locate project. If it can't be found, create a new one.
+	var project schemas.Project
+	project, err = getProject(imageID)
+	if err != nil {
+		project = schemas.Project{
+			ID:            imageID,
+			CreatedAt:     time.Now(),
+			Licenses:      0,
+			Collaborators: []schemas.Collaborator{},
+		}
+		db.Put(schemas.ProjectsCollection, project.ID, project)
+	}
+
 	container := &schemas.Container{
 		ID:        uuid.New(),
-		ImageID:   imageID,
+		ImageID:   project.ID,
 		LocalPath: body.LocalPath,
 		CreatedAt: time.Now(),
 	}
