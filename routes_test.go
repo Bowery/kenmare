@@ -302,40 +302,37 @@ func TestSaveContainerSuccessful(t *testing.T) {
 	}
 }
 
-// func TestSaveContainerInsufficientPermissions(t *testing.T) {
-// 	if createdContainer == nil {
-// 		t.Skip("Skipping because save failed")
-// 	}
-// 	server := startServer()
-// 	defer server.Close()
+func TestSaveContainerInsufficientPermissions(t *testing.T) {
+	server := startServer()
+	defer server.Close()
 
-// 	addr := fmt.Sprintf("%s/containers/%s/save?mac_addr=%s", server.URL, createdContainer.ID, url.QueryEscape(testProject.Collaborators[1].MACAddr))
-// 	req, err := http.NewRequest("PUT", addr, nil)
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
+	addr := fmt.Sprintf("%s/containers/%s/save?mac_addr=%s", server.URL, createdContainer.ID, url.QueryEscape(testProject.Collaborators[1].MACAddr))
+	req, err := http.NewRequest("PUT", addr, nil)
+	if err != nil {
+		t.Error(err)
+	}
 
-// 	res, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	defer res.Body.Close()
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+	defer res.Body.Close()
 
-// 	var resBody requests.Res
-// 	decoder := json.NewDecoder(res.Body)
-// 	err = decoder.Decode(&resBody)
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
+	var resBody requests.Res
+	decoder := json.NewDecoder(res.Body)
+	err = decoder.Decode(&resBody)
+	if err != nil {
+		t.Error(err)
+	}
 
-// 	if resBody.Status != requests.StatusFailed {
-// 		t.Error("unexpected status returned", resBody.Status)
-// 	}
+	if resBody.Status != requests.StatusFailed {
+		t.Error("unexpected status returned", resBody.Status)
+	}
 
-// 	if resBody.Error() != "insufficient permissions" {
-// 		t.Error("unexpected error", resBody.Error())
-// 	}
-// }
+	if resBody.Error() != "insufficient permissions" {
+		t.Error("unexpected error", resBody.Error())
+	}
+}
 
 func TestRemoveContainerSuccessful(t *testing.T) {
 	if createdContainer == nil {

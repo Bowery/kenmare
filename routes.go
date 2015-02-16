@@ -341,35 +341,37 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// // Check project and collaborator settings to make sure
 	// // the requesting collaborator has rights to save.
-	// project, err := getProject(container.ImageID)
-	// if err != nil {
-	// 	requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
-	// 	return
-	// }
+	project, err := getProject(container.ImageID)
+	if err != nil {
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
+		return
+	}
 
-	// macAddr := req.URL.Query().Get("mac_addr")
+	macAddr := req.URL.Query().Get("mac_addr")
 
-	// canSave := false
-	// isCreator := false
-	// for _, c := range project.Collaborators {
-	// 	if c.MACAddr == macAddr {
-	// 		if c.ID == project.CreatorID {
-	// 			isCreator = true
-	// 		}
+	canSave := false
+	isCreator := false
+	for _, c := range project.Collaborators {
+		if c.MACAddr == macAddr {
+			if c.ID == project.CreatorID {
+				isCreator = true
+			}
 
-	// 		if c.Permissions["canEdit"] {
-	// 			canSave = true
-	// 		}
-	// 	}
-	// }
+			if c.Permissions["canEdit"] {
+				canSave = true
+			}
+		}
+	}
 
-	// // If the requesting collaborator is not the creator and
-	// // can't save, deny save. If they are the creator skip
-	// // or if they can save skip.
-	// if !isCreator && !canSave {
-	// 	requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "insufficient permissions")
-	// 	return
-	// }
+	// If the requesting collaborator is not the creator and
+	// can't save, deny save. If they are the creator skip
+	// or if they can save skip. The last component is temporary,
+	// it's meant to exist for users of old versions of the application
+	// which don't set a creator id.
+	if !isCreator && !canSave && project.CreatorID != "" {
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "insufficient permissions")
+		return
+	}
 
 	if env != "testing" {
 		go func() {
