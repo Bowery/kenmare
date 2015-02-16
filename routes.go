@@ -229,18 +229,6 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		imageID = uuid.New()
 	}
 
-	var project schemas.Project
-	project, err = getProject(imageID)
-	if err != nil {
-		project = schemas.Project{
-			ID:            imageID,
-			CreatedAt:     time.Now(),
-			Licenses:      0,
-			Collaborators: []schemas.Collaborator{},
-		}
-		db.Put(schemas.ProjectsCollection, project.ID, project)
-	}
-
 	container := &schemas.Container{
 		ID:        uuid.New(),
 		ImageID:   imageID,
@@ -344,37 +332,37 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Check project and collaborator settings to make sure
-	// the requesting collaborator has rights to save.
-	project, err := getProject(container.ImageID)
-	if err != nil {
-		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
-		return
-	}
+	// // Check project and collaborator settings to make sure
+	// // the requesting collaborator has rights to save.
+	// project, err := getProject(container.ImageID)
+	// if err != nil {
+	// 	requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
+	// 	return
+	// }
 
-	macAddr := req.URL.Query().Get("mac_addr")
+	// macAddr := req.URL.Query().Get("mac_addr")
 
-	canSave := false
-	isCreator := false
-	for _, c := range project.Collaborators {
-		if c.MACAddr == macAddr {
-			if c.ID == project.CreatorID {
-				isCreator = true
-			}
+	// canSave := false
+	// isCreator := false
+	// for _, c := range project.Collaborators {
+	// 	if c.MACAddr == macAddr {
+	// 		if c.ID == project.CreatorID {
+	// 			isCreator = true
+	// 		}
 
-			if c.Permissions["canEdit"] {
-				canSave = true
-			}
-		}
-	}
+	// 		if c.Permissions["canEdit"] {
+	// 			canSave = true
+	// 		}
+	// 	}
+	// }
 
-	// If the requesting collaborator is not the creator and
-	// can't save, deny save. If they are the creator skip
-	// or if they can save skip.
-	if !isCreator && !canSave {
-		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "insufficient permissions")
-		return
-	}
+	// // If the requesting collaborator is not the creator and
+	// // can't save, deny save. If they are the creator skip
+	// // or if they can save skip.
+	// if !isCreator && !canSave {
+	// 	requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "insufficient permissions")
+	// 	return
+	// }
 
 	if env != "testing" {
 		go func() {
