@@ -229,6 +229,18 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		imageID = uuid.New()
 	}
 
+	var project schemas.Project
+	project, err = getProject(imageID)
+	if err != nil {
+		project = schemas.Project{
+			ID:            imageID,
+			CreatedAt:     time.Now(),
+			Licenses:      0,
+			Collaborators: []schemas.Collaborator{},
+		}
+		db.Put(schemas.ProjectsCollection, project.ID, project)
+	}
+
 	container := &schemas.Container{
 		ID:        uuid.New(),
 		ImageID:   imageID,
