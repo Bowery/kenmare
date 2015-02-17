@@ -18,6 +18,7 @@ import (
 	"github.com/Bowery/gopackages/config"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
+	"github.com/Bowery/gopackages/util"
 	"github.com/Bowery/gopackages/web"
 	"github.com/Bowery/kenmare/kenmare"
 	"github.com/gorilla/mux"
@@ -245,13 +246,16 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Get the instance to use from Google Cloud.
 	if env != "testing" {
-		instance, err := useRandomInstance()
+		instance, err := usePseudoRandomInstance(container.ImageID)
 		if err != nil {
 			data, _ := json.Marshal(map[string]string{"error": err.Error()})
 			go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
 			requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 			return
 		}
+
+		// Add this image to the instance.
+		instance.Images = util.AppendUniqueStr(instance.Images, imageID)
 
 		container.Instance = instance
 		container.Address = instance.Address
@@ -552,10 +556,26 @@ func getContainer(id string) (schemas.Container, error) {
 
 // useRandomInstance retrieves an instance to use removing it from the
 // instances collection.
-func useRandomInstance() (*schemas.Instance, error) {
-	results, totalCount, err := search(schemas.InstancesCollection, "*", true)
-	if err != nil {
-		return nil, err
+func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
+	var results []gorc.SearchResult
+	var totalCount uint64
+	var err error
+
+	// Attempt to find an instance that has run that image before.
+	if imageID != "" {
+		query := fmt.Sprintf("images.contains=%s", imageID)
+		results, totalCount, err = search(schemas.InstancesCollection, query, true)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// If there are no results, get all instances.
+	if len(results) < 1 {
+		results, totalCount, err = search(schemas.InstancesCollection, "*", true)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// If none exist, some will be created by the cron job.
