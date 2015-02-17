@@ -1,3 +1,4 @@
 kenmare-server
 fabfile.pyc
 bin
+default.etcd

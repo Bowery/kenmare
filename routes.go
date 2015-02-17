@@ -22,7 +22,6 @@ import (
 	"github.com/Bowery/gopackages/web"
 	"github.com/Bowery/kenmare/kenmare"
 	"github.com/gorilla/mux"
-	"github.com/orchestrate-io/gorc"
 	"github.com/stathat/go"
 	"github.com/unrolled/render"
 )
@@ -136,7 +135,7 @@ func updateProjectByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 	// Update current project with changes.
 	currentProject.Collaborators = updatedProject.Collaborators
-	_, err = db.Put(schemas.ProjectsCollection, updatedProject.ID, updatedProject)
+	err = db.Set(schemas.ProjectsCollection, updatedProject.ID, updatedProject)
 	if err != nil {
 		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 		return
@@ -198,7 +197,10 @@ func updateCollaboratorByProjectIDHandler(rw http.ResponseWriter, req *http.Requ
 		project.CreatorID = body.ID
 	}
 
-	db.Put(schemas.ProjectsCollection, project.ID, project)
+	err = db.Set(schemas.ProjectsCollection, project.ID, project)
+	if err != nil {
+		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
+	}
 
 	renderer.JSON(rw, http.StatusOK, map[string]interface{}{
 		"status":       requests.StatusUpdated,
@@ -225,16 +227,19 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Locate project. If it can't be found, create a new one.
-	var project schemas.Project
+	var project *schemas.Project
 	project, err = getProject(imageID)
 	if err != nil {
-		project = schemas.Project{
+		project = &schemas.Project{
 			ID:            imageID,
 			CreatedAt:     time.Now(),
 			Licenses:      0,
 			Collaborators: []schemas.Collaborator{},
 		}
-		db.Put(schemas.ProjectsCollection, project.ID, project)
+		err = db.Set(schemas.ProjectsCollection, project.ID, project)
+		if err != nil {
+			requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
+		}
 	}
 
 	container := &schemas.Container{
@@ -261,7 +266,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		container.Address = instance.Address
 	}
 
-	_, err = db.Put(schemas.ContainersCollection, container.ID, container)
+	err = db.Set(schemas.ContainersCollection, container.ID, container)
 	if err != nil {
 		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 		return
@@ -286,7 +291,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			go stathat.PostEZValue("kenmare delancey create container time", config.StatHatKey, elapsed)
 
 			start = time.Now()
-			_, err = db.Put(schemas.ContainersCollection, container.ID, container)
+			err = db.Set(schemas.ContainersCollection, container.ID, container)
 			if err != nil {
 				log.Println(err)
 				return
@@ -343,8 +348,8 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// // Check project and collaborator settings to make sure
-	// // the requesting collaborator has rights to save.
+	// Check project and collaborator settings to make sure
+	// the requesting collaborator has rights to save.
 	project, err := getProject(container.ImageID)
 	if err != nil {
 		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
@@ -380,7 +385,7 @@ func saveContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	if env != "testing" {
 		go func() {
 			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
-			err := delancey.Save(&container)
+			err := delancey.Save(container)
 			if err != nil {
 				data, _ := json.Marshal(map[string]string{"error": err.Error()})
 				go pusherC.Publish(string(data), "error", fmt.Sprintf("container-%s", container.ID))
@@ -413,7 +418,7 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 		go func() {
 			start := time.Now()
 			log.Println("calling delancey delete")
-			err := delancey.Delete(&container)
+			err := delancey.Delete(container)
 			if err != nil {
 				// TODO: handle error
 				fmt.Println(err)
@@ -425,7 +430,7 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 
 			start = time.Now()
 			log.Println("putting instance in collection")
-			_, err = db.Put(schemas.InstancesCollection, container.Instance.ID, container.Instance)
+			err = db.Set(schemas.InstancesCollection, container.Instance.ID, container.Instance)
 			if err != nil {
 				// TODO: handle error
 				fmt.Println(err)
@@ -447,29 +452,6 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 // updateImageByIDHandler notifies clients using the image id that there's been
 // an update.
 func updateImageByIDHandler(rw http.ResponseWriter, req *http.Request) {
-	// This route can't do anything in the test env.
-	if env == "testing" {
-		renderer.JSON(rw, http.StatusOK, map[string]string{
-			"status": requests.StatusUpdated,
-		})
-		return
-	}
-	vars := mux.Vars(req)
-	imageID := vars["id"]
-
-	// Get all containers here to publish ones with matching image ids.
-	containers, err := searchContainers("*")
-	if err != nil {
-		requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
-		return
-	}
-
-	for _, container := range containers {
-		if container.ImageID == imageID {
-			go pusherC.Publish("updated", "update", fmt.Sprintf("container-%s", container.ID))
-		}
-	}
-
 	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.StatusUpdated,
 	})
@@ -506,93 +488,76 @@ func exportHandler(rw http.ResponseWriter, req *http.Request) {
 	renderer.JSON(rw, http.StatusOK, res)
 }
 
-func getCollaborator(addr string) (schemas.Collaborator, error) {
-	collaboratorData, err := db.Get(schemas.CollaboratorsCollection, addr)
+func getProject(id string) (*schemas.Project, error) {
+	project := new(schemas.Project)
+	err := db.Get(schemas.ProjectsCollection, id, project)
 	if err != nil {
-		return schemas.Collaborator{}, err
-	}
-
-	collaborator := schemas.Collaborator{}
-	err = collaboratorData.Value(&collaborator)
-	if err != nil {
-		return schemas.Collaborator{}, err
-	}
-
-	return collaborator, nil
-}
-
-func getProject(id string) (schemas.Project, error) {
-	projectData, err := db.Get(schemas.ProjectsCollection, id)
-	if err != nil {
-		return schemas.Project{}, err
-	}
-
-	project := schemas.Project{}
-	err = projectData.Value(&project)
-	if err != nil {
-		return schemas.Project{}, err
+		return nil, err
 	}
 
 	return project, nil
 }
 
 // getContainer retrieves a container from Orchestrate.
-func getContainer(id string) (schemas.Container, error) {
-	start := time.Now()
-	containerData, err := db.Get(schemas.ContainersCollection, id)
+func getContainer(id string) (*schemas.Container, error) {
+	container := new(schemas.Container)
+	err := db.Get(schemas.ContainersCollection, id, container)
 	if err != nil {
-		return schemas.Container{}, err
+		return nil, err
 	}
 
-	container := schemas.Container{}
-	err = containerData.Value(&container)
-	if err != nil {
-		return schemas.Container{}, err
-	}
-	elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-	go stathat.PostEZValue("kenmare get container from orchestrate time", config.StatHatKey, elapsed)
 	return container, nil
+}
+
+func getInstances() ([]*schemas.Instance, error) {
+	results, err := db.List(schemas.InstancesCollection)
+	if err != nil {
+		return nil, err
+	}
+
+	instances := make([]*schemas.Instance, len(results))
+	for i, instance := range results {
+		err = json.Unmarshal([]byte(instance.(string)), &results[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return instances, nil
 }
 
 // useRandomInstance retrieves an instance to use removing it from the
 // instances collection.
 func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
-	var results []gorc.SearchResult
-	var totalCount uint64
-	var err error
-
-	// Attempt to find an instance that has run that image before.
-	if imageID != "" {
-		query := fmt.Sprintf("images.contains=%s", imageID)
-		results, totalCount, err = search(schemas.InstancesCollection, query, true)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// If there are no results, get all instances.
-	if len(results) < 1 {
-		results, totalCount, err = search(schemas.InstancesCollection, "*", true)
-		if err != nil {
-			return nil, err
-		}
+	instances, err := getInstances()
+	if err != nil {
+		return nil, err
 	}
 
 	// If none exist, some will be created by the cron job.
-	if totalCount <= 0 {
+	if len(instances) <= 0 {
 		return nil, kenmare.ErrNoInstances
 	}
 
-	// Get random instance from the list of results.
-	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(results))))
-	if err != nil {
-		return nil, err
+	var instance *schemas.Instance
+
+	// Attempt to find an instance that has run that image before.
+	if imageID != "" {
+		for _, i := range instances {
+			if _, isInSlice := util.StringInSlice(i.Images, imageID); isInSlice {
+				instance = i
+				break
+			}
+		}
 	}
 
-	instance := new(schemas.Instance)
-	err = results[idx.Int64()].Value(instance)
-	if err != nil {
-		return nil, err
+	if instance == nil {
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
+		if err != nil {
+			return nil, err
+		}
+
+		instance = instances[idx.Int64()]
 	}
 
 	// Delete the instance from the collection so it can't be used.
@@ -602,69 +567,4 @@ func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
 	}
 
 	return instance, nil
-}
-
-func searchContainers(query string) ([]schemas.Container, error) {
-	var containers []schemas.Container
-
-	data, _, err := search(schemas.ContainersCollection, query, true)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, result := range data {
-		var container schemas.Container
-
-		err := result.Value(&container)
-		if err != nil {
-			return nil, err
-		}
-
-		containers = append(containers, container)
-	}
-
-	return containers, nil
-}
-
-func searchInstances(query string) ([]schemas.Instance, error) {
-	var instances []schemas.Instance
-
-	data, _, err := search(schemas.InstancesCollection, query, true)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, result := range data {
-		var instance schemas.Instance
-
-		err := result.Value(&instance)
-		if err != nil {
-			return nil, err
-		}
-
-		instances = append(instances, instance)
-	}
-
-	return instances, nil
-}
-
-// search returns the query results on a collection, paging the results if true.
-// The search results are returned, and the total count of items found in the db.
-func search(collection, query string, page bool) ([]gorc.SearchResult, uint64, error) {
-	data, err := db.Search(collection, query, 100, 0)
-	if err != nil {
-		return nil, 0, err
-	}
-	results := data.Results
-
-	for page && data.HasNext() {
-		data, err = db.SearchGetNext(data)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		results = append(results, data.Results...)
-	}
-
-	return results, data.TotalCount, nil
 }

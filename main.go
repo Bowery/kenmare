@@ -8,9 +8,9 @@ import (
 
 	"github.com/Bowery/gopackages/aws"
 	"github.com/Bowery/gopackages/config"
+	"github.com/Bowery/gopackages/etcdb"
 	"github.com/Bowery/gopackages/gcloud"
 	"github.com/Bowery/gopackages/web"
-	"github.com/orchestrate-io/gorc"
 	"github.com/timonv/pusher"
 )
 
@@ -18,7 +18,7 @@ var (
 	awsC, _ = aws.NewClient(config.S3AccessKey, config.S3SecretKey)
 	gcloudC *gcloud.Client
 	pusherC *pusher.Client
-	db      *gorc.Client
+	db      *etcdb.Client
 	env     string
 	port    string
 )
@@ -30,11 +30,7 @@ func main() {
 
 	gcloudC, _ = gcloud.NewClient(config.GoogleCloudProjectID, config.GoogleCloudEmail, []byte(config.GoogleCloudPrivateKey))
 	pusherC = pusher.NewClient(config.PusherAppID, config.PusherKey, config.PusherSecret)
-	orchestrateKey := config.OrchestrateDevKey
-	if env == "production" {
-		orchestrateKey = config.OrchestrateProdKey
-	}
-	db = gorc.NewClient(orchestrateKey)
+	db = etcdb.New([]string{"http://localhost:4001"})
 
 	fmt.Println("Firing up Kenmare in", env, "environment...")
 	server := web.NewServer(port, []web.Handler{

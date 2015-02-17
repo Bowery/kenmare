@@ -2,6 +2,10 @@
 
 Kenmare is responsible for the lifecycle of an environment. From creation, to update, to termination, Kenmare takes care of it.
 
+## Prerequisites
+
+Kenmare relies on [etcd](https://github.com/coreos/etcd) as a datastore.
+
 ## Development
 
 The kenmare server listens on port 3000 in development and can be started by running:
