@@ -565,6 +565,9 @@ func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
 	if imageID != "" {
 		query := fmt.Sprintf("images.contains=%s", imageID)
 		results, totalCount, err = search(schemas.InstancesCollection, query, true)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// If there are no results, get all instances.
