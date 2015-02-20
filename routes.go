@@ -551,8 +551,6 @@ func usePseudoRandomInstance(imageID string) (schemas.Instance, error) {
 	// 	}
 	// }
 
-	log.Println(len(instances))
-
 	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
 	if err != nil {
 		return schemas.Instance{}, err
@@ -560,6 +558,8 @@ func usePseudoRandomInstance(imageID string) (schemas.Instance, error) {
 
 	instance = instances[idx.Int64()]
 	// }
+
+	log.Println(instance)
 
 	// Delete the instance from the collection so it can't be used.
 	err = db.Delete(schemas.InstancesCollection, instance.ID)
