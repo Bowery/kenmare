@@ -262,7 +262,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		// Add this image to the instance.
 		instance.Images = util.AppendUniqueStr(instance.Images, imageID)
 
-		container.Instance = instance
+		container.Instance = &instance
 		container.Address = instance.Address
 	}
 
@@ -528,15 +528,15 @@ func getInstances() ([]schemas.Instance, error) {
 
 // useRandomInstance retrieves an instance to use removing it from the
 // instances collection.
-func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
+func usePseudoRandomInstance(imageID string) (schemas.Instance, error) {
 	instances, err := getInstances()
 	if err != nil {
-		return nil, err
+		return schemas.Instance{}, err
 	}
 
 	// If none exist, some will be created by the cron job.
 	if len(instances) <= 0 {
-		return nil, kenmare.ErrNoInstances
+		return schemas.Instance{}, kenmare.ErrNoInstances
 	}
 
 	var instance schemas.Instance
@@ -551,19 +551,18 @@ func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
 	// 	}
 	// }
 
-	if instance == nil {
-		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
-		if err != nil {
-			return nil, err
-		}
-
-		instance = instances[idx.Int64()]
+	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
+	if err != nil {
+		return schemas.Instance{}, err
 	}
+
+	instance = instances[idx.Int64()]
+	// }
 
 	// Delete the instance from the collection so it can't be used.
 	err = db.Delete(schemas.InstancesCollection, instance.ID)
 	if err != nil {
-		return nil, err
+		return schemas.Instance{}, err
 	}
 
 	return instance, nil
