@@ -517,7 +517,7 @@ func getInstances() ([]schemas.Instance, error) {
 
 	instances := make([]schemas.Instance, len(results))
 	for i, instance := range results {
-		err = json.Unmarshal([]byte(instance.(string)), results[i])
+		err = json.Unmarshal([]byte(instance.(string)), instances[i])
 		if err != nil {
 			return nil, err
 		}
