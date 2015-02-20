@@ -542,14 +542,14 @@ func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
 	var instance *schemas.Instance
 
 	// Attempt to find an instance that has run that image before.
-	if imageID != "" {
-		for _, i := range instances {
-			if _, isInSlice := util.StringInSlice(i.Images, imageID); isInSlice {
-				instance = i
-				break
-			}
-		}
-	}
+	// if imageID != "" {
+	// 	for _, i := range instances {
+	// 		if _, isInSlice := util.StringInSlice(i.Images, imageID); isInSlice {
+	// 			instance = i
+	// 			break
+	// 		}
+	// 	}
+	// }
 
 	if instance == nil {
 		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
