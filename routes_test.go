@@ -10,12 +10,10 @@ import (
 	"testing"
 
 	"code.google.com/p/go-uuid/uuid"
-
-	"github.com/Bowery/gopackages/config"
+	"github.com/Bowery/gopackages/etcdb"
 	"github.com/Bowery/gopackages/requests"
 	"github.com/Bowery/gopackages/schemas"
 	"github.com/gorilla/mux"
-	"github.com/orchestrate-io/gorc"
 )
 
 var (
@@ -25,8 +23,8 @@ var (
 )
 
 func init() {
-	db = gorc.NewClient(config.OrchestrateDevKey)
-	env = "testing" // Disables the aws features.
+	db = etcdb.New([]string{"http://localhost:4001"})
+	env = "testing"
 }
 
 func TestCreateContainerSuccessful(t *testing.T) {
