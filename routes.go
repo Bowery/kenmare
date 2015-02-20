@@ -551,6 +551,8 @@ func usePseudoRandomInstance(imageID string) (schemas.Instance, error) {
 	// 	}
 	// }
 
+	log.Println(len(instances))
+
 	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
 	if err != nil {
 		return schemas.Instance{}, err
