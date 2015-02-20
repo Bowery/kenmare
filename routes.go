@@ -262,7 +262,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		// Add this image to the instance.
 		instance.Images = util.AppendUniqueStr(instance.Images, imageID)
 
-		container.Instance = &instance
+		container.Instance = instance
 		container.Address = instance.Address
 	}
 
@@ -509,15 +509,15 @@ func getContainer(id string) (*schemas.Container, error) {
 	return container, nil
 }
 
-func getInstances() ([]schemas.Instance, error) {
+func getInstances() ([]*schemas.Instance, error) {
 	results, err := db.List(schemas.InstancesCollection)
 	if err != nil {
 		return nil, err
 	}
 
-	instances := make([]schemas.Instance, len(results))
+	instances := make([]*schemas.Instance, len(results))
 	for i, instance := range results {
-		err = json.Unmarshal([]byte(instance.(string)), instances[i])
+		err = json.Unmarshal([]byte(instance.(string)), &instances[i])
 		if err != nil {
 			return nil, err
 		}
@@ -528,18 +528,18 @@ func getInstances() ([]schemas.Instance, error) {
 
 // useRandomInstance retrieves an instance to use removing it from the
 // instances collection.
-func usePseudoRandomInstance(imageID string) (schemas.Instance, error) {
+func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
 	instances, err := getInstances()
 	if err != nil {
-		return schemas.Instance{}, err
+		return nil, err
 	}
 
 	// If none exist, some will be created by the cron job.
 	if len(instances) <= 0 {
-		return schemas.Instance{}, kenmare.ErrNoInstances
+		return nil, kenmare.ErrNoInstances
 	}
 
-	var instance schemas.Instance
+	var instance *schemas.Instance
 
 	// Attempt to find an instance that has run that image before.
 	// if imageID != "" {
@@ -553,7 +553,7 @@ func usePseudoRandomInstance(imageID string) (schemas.Instance, error) {
 
 	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(instances))))
 	if err != nil {
-		return schemas.Instance{}, err
+		return nil, err
 	}
 
 	instance = instances[idx.Int64()]
@@ -564,7 +564,7 @@ func usePseudoRandomInstance(imageID string) (schemas.Instance, error) {
 	// Delete the instance from the collection so it can't be used.
 	err = db.Delete(schemas.InstancesCollection, instance.ID)
 	if err != nil {
-		return schemas.Instance{}, err
+		return nil, err
 	}
 
 	return instance, nil
