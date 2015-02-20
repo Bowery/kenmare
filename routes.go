@@ -509,13 +509,13 @@ func getContainer(id string) (*schemas.Container, error) {
 	return container, nil
 }
 
-func getInstances() ([]*schemas.Instance, error) {
+func getInstances() ([]schemas.Instance, error) {
 	results, err := db.List(schemas.InstancesCollection)
 	if err != nil {
 		return nil, err
 	}
 
-	instances := make([]*schemas.Instance, len(results))
+	instances := make([]schemas.Instance, len(results))
 	for i, instance := range results {
 		err = json.Unmarshal([]byte(instance.(string)), &results[i])
 		if err != nil {
@@ -539,7 +539,7 @@ func usePseudoRandomInstance(imageID string) (*schemas.Instance, error) {
 		return nil, kenmare.ErrNoInstances
 	}
 
-	var instance *schemas.Instance
+	var instance schemas.Instance
 
 	// Attempt to find an instance that has run that image before.
 	// if imageID != "" {
