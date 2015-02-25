@@ -37,7 +37,6 @@ func main() {
 		new(web.SlashHandler),
 		new(web.CorsHandler),
 		new(web.GzipHandler),
-		&web.StatHandler{Key: config.StatHatKey, Name: "kenmare"},
 	}, routes)
 	server.AuthHandler = &web.AuthHandler{Auth: web.DefaultAuthHandler}
 	server.ListenAndServe()
