@@ -22,7 +22,6 @@ import (
 	"github.com/Bowery/gopackages/web"
 	"github.com/Bowery/kenmare/kenmare"
 	"github.com/gorilla/mux"
-	"github.com/stathat/go"
 	"github.com/unrolled/render"
 )
 
@@ -242,6 +241,10 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	if slackC != nil {
+		slackC.SendMessage("#usage", "New container created for project: "+project.ID, "bowery police")
+	}
+
 	container := &schemas.Container{
 		ID:        uuid.New(),
 		ImageID:   project.ID,
@@ -277,7 +280,6 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	// new information.
 	if env != "testing" {
 		go func() {
-			start := time.Now()
 			go pusherC.Publish("environment:0", "progress", fmt.Sprintf("container-%s", container.ID))
 
 			err := delancey.Create(container, body.Dockerfile)
@@ -287,19 +289,13 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 				return
 			}
 			go pusherC.Publish("environment:1", "progress", fmt.Sprintf("container-%s", container.ID))
-			elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-			go stathat.PostEZValue("kenmare delancey create container time", config.StatHatKey, elapsed)
 
-			start = time.Now()
 			err = db.Set(schemas.ContainersCollection, container.ID, container)
 			if err != nil {
 				log.Println(err)
 				return
 			}
-			elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
-			go stathat.PostEZValue("kenmare delancey update orchestrate container time", config.StatHatKey, elapsed)
 
-			start = time.Now()
 			data, err := json.Marshal(container)
 			if err == nil {
 				err = pusherC.Publish(string(data), "created", fmt.Sprintf("container-%s", container.ID))
@@ -309,8 +305,6 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 			} else {
 				log.Println(err)
 			}
-			elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
-			go stathat.PostEZValue("kenmare delancey update pubsub request time", config.StatHatKey, elapsed)
 		}()
 	}
 
@@ -406,7 +400,6 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	containerID := vars["id"]
 
-	removestart := time.Now()
 	container, err := getContainer(containerID)
 	if err != nil {
 		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, err.Error())
@@ -416,7 +409,6 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	// In separate routines, reset the agent and recycle the instance.
 	if env != "testing" {
 		go func() {
-			start := time.Now()
 			log.Println("calling delancey delete")
 			err := delancey.Delete(container)
 			if err != nil {
@@ -425,10 +417,7 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 				return
 			}
 			log.Println("successfully deleted")
-			elapsed := float64(time.Since(start).Nanoseconds() / 1000000)
-			go stathat.PostEZValue("kenmare remove container by id delancey request time", config.StatHatKey, elapsed)
 
-			start = time.Now()
 			log.Println("putting instance in collection")
 			err = db.Set(schemas.InstancesCollection, container.Instance.ID, container.Instance)
 			if err != nil {
@@ -436,8 +425,6 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 				fmt.Println(err)
 			}
 			log.Println("successfully stored instance")
-			elapsed = float64(time.Since(start).Nanoseconds() / 1000000)
-			go stathat.PostEZValue("kenmare remove container by id delete instance time", config.StatHatKey, elapsed)
 		}()
 	}
 
@@ -445,8 +432,6 @@ func removeContainerByIDHandler(rw http.ResponseWriter, req *http.Request) {
 	renderer.JSON(rw, http.StatusOK, map[string]string{
 		"status": requests.StatusRemoved,
 	})
-	elapsed := float64(time.Since(removestart).Nanoseconds() / 1000000)
-	go stathat.PostEZValue("kenmare remove container by id request time", config.StatHatKey, elapsed)
 }
 
 // updateImageByIDHandler notifies clients using the image id that there's been
