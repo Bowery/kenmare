@@ -225,6 +225,11 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		imageID = uuid.New()
 	}
 
+	if body.LocalPath == "C:\\www" {
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "")
+		return
+	}
+
 	// Locate project. If it can't be found, create a new one.
 	var project *schemas.Project
 	project, err = getProject(imageID)
