@@ -226,7 +226,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if slackC != nil {
-		slackC.SendMessage("#usage", "New container creating for project: "+project.ID+" ip: "+req.RemoteAddr, "bowery police")
+		slackC.SendMessage("#usage", "New container creating for project: "+imageID+" ip: "+req.RemoteAddr, "bowery police")
 	}
 
 	if body.LocalPath == "C:\\www" {
