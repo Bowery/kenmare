@@ -225,6 +225,10 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		imageID = uuid.New()
 	}
 
+	if slackC != nil {
+		slackC.SendMessage("#usage", "New container creating for project: "+project.ID+" ip: "+req.RemoteAddr, "bowery police")
+	}
+
 	if body.LocalPath == "C:\\www" {
 		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "")
 		return
@@ -244,10 +248,6 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			requests.ErrorJSON(rw, http.StatusInternalServerError, requests.StatusFailed, err.Error())
 		}
-	}
-
-	if slackC != nil {
-		slackC.SendMessage("#usage", "New container created for project: "+project.ID, "bowery police")
 	}
 
 	container := &schemas.Container{
