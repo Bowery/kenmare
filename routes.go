@@ -242,6 +242,8 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	slackC.SendMessage("#usage", "New container created for project: " + project.ID, "bowery police")
+
 	container := &schemas.Container{
 		ID:        uuid.New(),
 		ImageID:   project.ID,
