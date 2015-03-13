@@ -230,6 +230,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		slackC.SendMessage("#usage", "New container creating for project: "+imageID+" ip: "+req.RemoteAddr, "bowery police")
 	}
 
+	fmt.Println(req.RemoteAddr, strings.Split(req.RemoteAddr, ":"))
 	if strings.Split(req.RemoteAddr, ":")[0] == "10.181.144.223" {
 		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "")
 		return
