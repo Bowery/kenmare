@@ -234,6 +234,11 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if strings.Split(req.RemoteAddr, ":")[0] == "10.181.144.223" {
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "")
+		return	
+	}
+
 	// Locate project. If it can't be found, create a new one.
 	var project *schemas.Project
 	project, err = getProject(imageID)
