@@ -11,6 +11,7 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"strings"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -236,7 +237,7 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 
 	if strings.Split(req.RemoteAddr, ":")[0] == "10.181.144.223" {
 		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "")
-		return	
+		return
 	}
 
 	// Locate project. If it can't be found, create a new one.
