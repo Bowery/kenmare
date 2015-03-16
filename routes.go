@@ -226,7 +226,12 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if slackC != nil {
-		slackC.SendMessage("#usage", "New container creating for project: "+imageID+" ip: "+req.RemoteAddr, "bowery police")
+    ip := req.Header.Get("X-Forwarded-For")
+    if ip == "" {
+      ip = req.RemoteAddr
+    }
+
+		slackC.SendMessage("#usage", "New container creating for project: "+imageID+" ip: "+ip, "bowery police")
 	}
 
 	// Locate project. If it can't be found, create a new one.
