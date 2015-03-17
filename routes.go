@@ -225,11 +225,16 @@ func createContainerHandler(rw http.ResponseWriter, req *http.Request) {
 		imageID = uuid.New()
 	}
 
+	ip := req.Header.Get("X-Forwarded-For")
+	if ip == "213.138.246.35" {
+		requests.ErrorJSON(rw, http.StatusBadRequest, requests.StatusFailed, "insufficient permissions")
+		return
+	}
+
 	if slackC != nil {
-    ip := req.Header.Get("X-Forwarded-For")
-    if ip == "" {
-      ip = req.RemoteAddr
-    }
+		if ip == "" {
+			ip = req.RemoteAddr
+		}
 
 		slackC.SendMessage("#usage", "New container creating for project: "+imageID+" ip: "+ip, "bowery police")
 	}
